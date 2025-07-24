@@ -49,7 +49,7 @@ def scrape_page(page_num):
     url = BASE_URL.format(page_num)
     html = fetch_with_backoff(url)
     if not html:
-        return False
+        return False, "html"
 
     soup = BeautifulSoup(html, "html.parser")
 
@@ -61,7 +61,7 @@ def scrape_page(page_num):
 
     if not listings:
         print(f"No listings found on page {page_num}")
-        return False
+        return False, "listings"
 
     for listing in listings:
         property_id = uuid4()
@@ -76,7 +76,7 @@ def scrape_page(page_num):
         # Check if we already have this link in the DB. If so, stop
         exists = collection.find_one({"link": link}) is not None
         if exists:
-            return False
+            return False, "stop"
 
         listing_data["link"] = link
 
@@ -97,8 +97,8 @@ def scrape_page(page_num):
         listing_data["description"] = description
 
         # Get the listing details
-        mian_content = listing_content.find("div", class_="entry-content")
-        details = mian_content.find("table").findAll("tr")
+        main_content = listing_content.find("div", class_="entry-content")
+        details = main_content.find("table").findAll("tr")
         for row in details:
             tds = row.find_all("td")
             if len(tds) >= 2:
@@ -132,7 +132,7 @@ def scrape_page(page_num):
                 listing_data[field] = value
         
         # Now get the listing images
-        images = mian_content.find("div", class_="image50").findAll("div")
+        images = main_content.find("div", class_="image50").findAll("div")
         image_paths = []
         for image in images:
             image_link = image.find("a")
@@ -146,14 +146,15 @@ def scrape_page(page_num):
         listing_data["images"] = image_paths
         collection.insert_one(listing_data)
 
-    return True
+    return True, "success"
 
 # --- MAIN LOOP ---
 def main():
     page = 1
     while True:
         print(f"Scraping page {page}...")
-        if not scrape_page(page):
+        success, reason = scrape_page(page)
+        if not success:
             break
         page += 1
 

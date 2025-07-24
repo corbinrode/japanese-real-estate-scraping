@@ -10,8 +10,7 @@ from uuid import uuid4
 from helpers import translate_text, save_image, get_property_type, get_area_label
 from config import settings
 
-BASE_URL_BUY = "https://myhome.nifty.com/shinchiku-ikkodate/{}/search/{}/?subtype=bes,bnc,bnh,buc,buh&pnum=40&sort=regDate-desc"
-BASE_URL_RENT = "https://myhome.nifty.com/shinchiku-ikkodate/{}/search/{}/?subtype=bes,bnc,bnh,buc,buh&pnum=40&sort=regDate-desc"
+BASE_URL = "https://myhome.nifty.com/shinchiku-ikkodate/{}/search/{}/?subtype=bes,bnc,bnh,buc,buh&pnum=40&sort=regDate-desc"
 MAX_RETRIES = 5
 INITIAL_BACKOFF = 0.5  # in seconds
 
@@ -50,8 +49,8 @@ def fetch_with_backoff(url):
 
 
 # --- SCRAPER FUNCTION ---
-def scrape_page_buy(area, page_num):
-    url = BASE_URL_BUY.format(area, page_num)
+def scrape_page(prefecture, page_num):
+    url = BASE_URL.format(prefecture, page_num)
     print(url)
     html = fetch_with_backoff(url)
     if not html:
@@ -77,8 +76,9 @@ def scrape_page_buy(area, page_num):
         link_tag = listing.find("a")
 
         # Get the href attribute
-        link = "https://myhome.nifty.com" + link_tag["href"]
-        print(link)
+        link = link_tag["href"]
+        if link[0] == "/":
+            link = "https://myhome.nifty.com" + link_tag["href"]
         
         # Check if we already have this link in the DB. If so, stop
         exists = collection.find_one({"link": link}) is not None
@@ -90,6 +90,8 @@ def scrape_page_buy(area, page_num):
         # Get the property type
         property_type = listing.find("span", class_="badge is-plain is-pj1 is-margin-right-xxs is-middle is-strong is-xs").get_text(strip=True)
         property_type = get_property_type(property_type)
+
+        print(link)
 
         # Get the price
         price = listing.find("p").get_text(strip=True)
@@ -124,102 +126,43 @@ def scrape_page_buy(area, page_num):
             value = translate_text(value)
 
             listing_data[field] = value
-            print(field)
-            print(value)
 
 
         listing_data["Sale Price"] = price
         listing_data["Property Type"] = property_type
         listing_data["Property Location"] = location
         listing_data["Transportation"] = transportation
-        continue
 
-        # now that we have the link, scrape the specific listing
-        html2 = fetch_with_backoff(link)
-        if not html2:
-            print("Problem fetching listing link: " + link)
-            continue
-
-        soup2 = BeautifulSoup(html2, "html.parser")
-
-        # Find the main content on the page
-        listing_content = soup2.find('main', class_='main')
-
-        # find the price
-        price = listing_content.find("div", class_="box is-flex is-gap-8px").get_text(strip=True)
-        print(price)
-        continue
-
-        # find the listing description
-        description = listing_content.find("h1", class_="entry-title").get_text(strip=True)
-        description = translate_text(description)
-        listing_data["description"] = description
-
-        # Get the listing details
-        mian_content = listing_content.find("div", class_="entry-content")
-        details = mian_content.find("table").findAll("tr")
-        for row in details:
-            tds = row.find_all("td")
-            if len(tds) >= 2:
-                field = tds[0].get_text(strip=True)
-                value = tds[1].get_text(strip=True)
-
-                # convert japanese field to english
-                field = get_table_field_english(field)
-
-                if value:
-                    value = translate_text(value)
-                
-                # get the referrer url if needed
-                if field == "Reference URL":
-                    value = tds[1].find("a").get("href")
-
-                # populate listing_data for inserting to the DB
-                listing_data[field] = value
-            
-            if len(tds) >= 4:
-                field = tds[2].get_text(strip=True)
-                value = tds[3].get_text(strip=True)
-
-                # convert japanese field to english
-                field = get_table_field_english(field)
-
-                if value:
-                    value = translate_text(value)
-
-                # populate listing_data for inserting to the DB
-                listing_data[field] = value
-        
-        # Now get the listing images
-        images = mian_content.find("div", class_="image50").findAll("div")
+        # Get the img
         image_paths = []
-        for image in images:
-            image_link = image.find("a")
-            if image_link:
-                image_link = image_link.get("href")
-                file_name = "{}.jpg".format(uuid4())
-                folder = os.path.join("images", "sumai", str(property_id))
-                image_path = save_image(image_link, file_name, folder)
-                image_paths.append(image_path)
-        
+        image_link = listing.find("img")
+        if image_link:
+            image_link = image_link.get("src")
+            file_name = "{}.jpg".format(uuid4())
+            folder = os.path.join("images", "nifty", str(property_id))
+            image_path = save_image(image_link, file_name, folder)
+            image_paths.append(image_path)
+
+            
         listing_data["images"] = image_paths
+
         collection.insert_one(listing_data)
 
     return True
 
 # --- MAIN LOOP ---
 def main():
-    areas = ["hokkaido", "aomori", "iwate", "miyagi", "akita", "yamagata", "fukushima", "tokyo", "kanagawa",
+    prefectures = ["hokkaido", "aomori", "iwate", "miyagi", "akita", "yamagata", "fukushima", "tokyo", "kanagawa",
             "saitama", "chiba", "ibaraki", "tochigi", "gunma", "niigata", "yamanashi", "nagano", "toyama",
             "ishikawa", "fukui", "aichi", "gifu", "shizuoka", "mie", "osaka", "hyogo", "kyoto", "shiga",
             "nara", "wakayama", "hiroshima", "okayama", "tottori", "shimane", "yamaguchi", "tokushima",
             "kagawa", "ehime", "kochi", "fukuoka", "saga", "nagasaki", "kumamoto", "oita", "miyazaki",
             "kagoshima", "okinawa"]
-    for area in areas:
+    for prefecture in prefectures:
         page = 1
         while True:
-            print(f"Scraping area {area}, page {page}...")
-            if not scrape_page_buy(area, page):
+            print(f"Scraping area {prefecture}, page {page}...")
+            if not scrape_page(prefecture, page):
                 break
             page += 1
 
