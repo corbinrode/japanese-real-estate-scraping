@@ -10,7 +10,7 @@ from uuid import uuid4
 from helpers import translate_text, save_image, get_property_type, get_area_label
 from config import settings
 
-BASE_URL = "https://myhome.nifty.com/shinchiku-ikkodate/{}/search/{}/?subtype=bes,bnc,bnh,buc,buh&pnum=40&sort=regDate-desc"
+BASE_URL = "https://myhome.nifty.com/shinchiku-ikkodate/{}/search/{}/?subtype=bnh,buh&b2=30000000&pnum=40&sort=regDate-desc"
 MAX_RETRIES = 5
 INITIAL_BACKOFF = 0.5  # in seconds
 
