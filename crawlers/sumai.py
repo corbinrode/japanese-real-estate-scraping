@@ -7,8 +7,12 @@ import os
 import bson
 from bs4 import BeautifulSoup
 from uuid import uuid4
-from helpers import translate_text, get_table_field_english, save_image
+from helpers import translate_text, get_table_field_english, save_image, setup_logger
 from config import settings
+
+# Set up logger
+logger = setup_logger('sumai', 'sumai')
+
 
 BASE_URL = "https://akiya.sumai.biz/page/{}?s&post_types=post"
 MAX_RETRIES = 5
@@ -30,17 +34,17 @@ def fetch_with_backoff(url):
             if response.status_code == 200:
                 return response.text
             else:
-                print(f"Non-200 status: {response.status_code}")
+                logger.warning(f"Non-200 status: {response.status_code}")
         except requests.RequestException as e:
-            print(f"Request failed: {e}")
+            logger.error(f"Request failed: {e}")
 
         # Exponential backoff with jitter
         jitter = random.uniform(0, backoff)
-        print(f"Retrying in {jitter:.2f} seconds...")
+        logger.info(f"Retrying in {jitter:.2f} seconds...")
         time.sleep(jitter)
         backoff *= 2
 
-    print("Max retries exceeded.")
+    logger.error("Max retries exceeded.")
     return None
 
 
@@ -49,7 +53,7 @@ def scrape_page(page_num):
     url = BASE_URL.format(page_num)
     html = fetch_with_backoff(url)
     if not html:
-        return False, "html"
+        return False
 
     soup = BeautifulSoup(html, "html.parser")
 
@@ -60,7 +64,7 @@ def scrape_page(page_num):
     listings = content.find_all('div', class_="entry-thumbnail")
 
     if not listings:
-        print(f"No listings found on page {page_num}")
+        logger.warning(f"No listings found on page {page_num}")
         return False, "listings"
 
     for listing in listings:
@@ -76,14 +80,15 @@ def scrape_page(page_num):
         # Check if we already have this link in the DB. If so, stop
         exists = collection.find_one({"link": link}) is not None
         if exists:
-            return False, "stop"
+            logger.info(f"Scraping stopping. Link already exists: " + link)
+            return False
 
         listing_data["link"] = link
 
         # now that we have the link, scrape the specific listing
         html2 = fetch_with_backoff(link)
         if not html2:
-            print("Problem fetching listing link: " + link)
+            logger.error("Problem fetching listing link: " + link)
             continue
 
         soup2 = BeautifulSoup(html2, "html.parser")
@@ -98,7 +103,7 @@ def scrape_page(page_num):
 
         # Get the listing details
         main_content = listing_content.find("div", class_="entry-content")
-        details = main_content.find("table").findAll("tr")
+        details = main_content.find("table").find_all("tr")
         for row in details:
             tds = row.find_all("td")
             if len(tds) >= 2:
@@ -132,7 +137,7 @@ def scrape_page(page_num):
                 listing_data[field] = value
         
         # Now get the listing images
-        images = main_content.find("div", class_="image50").findAll("div")
+        images = main_content.find("div", class_="image50").find_all("div")
         image_paths = []
         for image in images:
             image_link = image.find("a")
@@ -146,19 +151,18 @@ def scrape_page(page_num):
         listing_data["images"] = image_paths
         collection.insert_one(listing_data)
 
-    return True, "success"
+    return True
 
 # --- MAIN LOOP ---
 def main():
     page = 1
     while True:
-        print(f"Scraping page {page}...")
-        success, reason = scrape_page(page)
-        if not success:
+        logger.info(f"Scraping page {page}...")
+        if not  scrape_page(page):
             break
         page += 1
 
-    print("Scraping complete.")
+    logger.info("Scraping complete.")
 
 if __name__ == "__main__":
     main()

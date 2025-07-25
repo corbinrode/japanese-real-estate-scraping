@@ -1,9 +1,12 @@
 import deepl
 import requests
 import os
+import logging
+from config import settings
+
 
 def translate_text(text, target_lang="EN-US"):
-    auth_key = "943f69a8-c21e-4ec6-9216-89ea99a2729c:fx"
+    auth_key = settings.DEEPL_API_KEY
     translator = deepl.Translator(auth_key)
 
     result = translator.translate_text(text, target_lang=target_lang)
@@ -21,11 +24,44 @@ def save_image(image_url, filename, folder):
                 f.write(response.content)
             return path
         else:
-            print(f"Failed to download image. Status code: {response.status_code}")
+            logging.error(f"Failed to download image. Status code: {response.status_code}")
             return None
     except Exception as e:
-        print(f"Error downloading image: {e}")
+        logging.error(f"Error downloading image: {e}")
         return None
+
+
+def setup_logger(logger_name, log_file_base):
+    """
+    Sets up a logger with rotating file handlers for info and error logs.
+    Args:
+        logger_name (str): Name of the logger (e.g., 'nifty', 'sumai').
+        log_file_base (str): Base name for log files (e.g., 'nifty', 'sumai').
+    Returns:
+        logging.Logger: Configured logger instance.
+    """
+    import logging
+    import logging.handlers
+    import os
+    log_dir = settings.LOG_DIR
+    os.makedirs(log_dir, exist_ok=True)
+
+    info_handler = logging.handlers.RotatingFileHandler(
+        os.path.join(log_dir, f'{log_file_base}.log'), maxBytes=1048576, backupCount=3)
+    info_handler.setLevel(logging.INFO)
+    info_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
+
+    error_handler = logging.handlers.RotatingFileHandler(
+        os.path.join(log_dir, f'{log_file_base}_error.log'), maxBytes=1048576, backupCount=3)
+    error_handler.setLevel(logging.ERROR)
+    error_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
+
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(logging.INFO)
+    logger.handlers = []
+    logger.addHandler(info_handler)
+    logger.addHandler(error_handler)
+    return logger
 
 
 def get_table_field_english(field):

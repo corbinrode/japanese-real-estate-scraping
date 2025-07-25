@@ -7,6 +7,8 @@ class Settings(BaseSettings):
     DB_PORT: str
     DB_USER: str
     DB_PASSWORD: str
+    DEEPL_API_KEY: str
+    LOG_DIR: str
 
     class Config:
         env_file = ".env"

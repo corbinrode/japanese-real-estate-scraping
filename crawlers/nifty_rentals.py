@@ -7,7 +7,7 @@ import os
 import bson
 from bs4 import BeautifulSoup
 from uuid import uuid4
-from helpers import translate_text, save_image, get_property_type, get_area_label
+from helpers import translate_text, save_image, get_property_type, get_area_label, setup_logger
 from config import settings
 
 MAX_RETRIES = 5
@@ -24,6 +24,9 @@ headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 }
 
+# Set up logger
+logger = setup_logger('nifty_rentals', 'nifty_rentals')
+
 # --- REQUEST FUNCTION WITH JITTER AND BACKOFF ---
 def fetch_with_backoff(url):
     backoff = INITIAL_BACKOFF
@@ -33,24 +36,24 @@ def fetch_with_backoff(url):
             if response.status_code == 200:
                 return response.text
             else:
-                print(f"Non-200 status: {response.status_code}")
+                logger.warning(f"Non-200 status: {response.status_code}")
         except requests.RequestException as e:
-            print(f"Request failed: {e}")
+            logger.error(f"Request failed: {e}")
 
         # Exponential backoff with jitter
         jitter = random.uniform(0, backoff)
-        print(f"Retrying in {jitter:.2f} seconds...")
+        logger.info(f"Retrying in {jitter:.2f} seconds...")
         time.sleep(jitter)
         backoff *= 2
 
-    print("Max retries exceeded.")
+    logger.error("Max retries exceeded.")
     return None
 
 
 # --- SCRAPER FUNCTION ---
 def scrape_page(url, page_num):
     url = url.format(page_num)
-    print(url)
+    logger.info(url)
     html = fetch_with_backoff(url)
     if not html:
         return False
@@ -64,7 +67,7 @@ def scrape_page(url, page_num):
     listings = content.find_all('li', recursive=False)
 
     if not listings:
-        print(f"No listings found on page {page_num}")
+        logger.warning(f"No listings found on page {page_num}")
         return False
 
     for listing in listings:
@@ -208,13 +211,13 @@ def main():
         for city in cities_to_scrape:
             page = 1
             while True:
-                print(f"Scraping area {prefecture}, city {city}, page {page}...")
+                logger.info(f"Scraping area {prefecture}, city {city}, page {page}...")
                 if not scrape_page(city, page):
                     break
                 page += 1
             
 
-    print("Scraping complete.")
+    logger.info("Scraping complete.")
 
 if __name__ == "__main__":
     main()
