@@ -35,28 +35,48 @@ def save_image(image_url, filename, folder):
 
 def setup_logger(logger_name, log_file_base):
     """
-    Sets up a logger with a rotating file handler for warnings and errors only.
+    Sets up a logger with rotating file handlers:
+    - One for warnings and errors only.
+    - One for info-level and above (including warnings and errors).
+    
     Args:
         logger_name (str): Name of the logger (e.g., 'nifty', 'sumai').
         log_file_base (str): Base name for log files (e.g., 'nifty', 'sumai').
+
     Returns:
         logging.Logger: Configured logger instance.
     """
     import logging
     import logging.handlers
     import os
+    from my_project import settings  # Make sure this import matches your project structure
+
     log_dir = settings.LOG_DIR
     os.makedirs(log_dir, exist_ok=True)
 
+    # Handler for warnings and errors
     error_handler = logging.handlers.RotatingFileHandler(
         os.path.join(log_dir, f'{log_file_base}_error.log'), maxBytes=1048576, backupCount=3)
     error_handler.setLevel(logging.WARNING)
     error_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
 
+    # Handler for info and above
+    info_handler = logging.handlers.RotatingFileHandler(
+        os.path.join(log_dir, f'{log_file_base}_info.log'), maxBytes=1048576, backupCount=3)
+    info_handler.setLevel(logging.INFO)
+    info_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
+
+    # Setup logger
     logger = logging.getLogger(logger_name)
-    logger.setLevel(logging.WARNING)
+    logger.setLevel(logging.INFO)  # Allow all messages INFO and above
+
+    # Clear existing handlers
     logger.handlers = []
+
+    # Add both handlers
+    logger.addHandler(info_handler)
     logger.addHandler(error_handler)
+
     return logger
 
 

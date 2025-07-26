@@ -55,7 +55,6 @@ def fetch_with_backoff(url):
 # --- SCRAPER FUNCTION ---
 def scrape_page(num, prefecture, page_num):
     url = BASE_URL.format(num, page_num)
-    print(url)
     html = fetch_with_backoff(url)
     if not html:
         return False
@@ -72,7 +71,6 @@ def scrape_page(num, prefecture, page_num):
         logger.warning(f"No listings found on page {page_num}")
         return False
 
-    print(len(listings))
     for listing in listings:
         property_id = uuid4()
         listing_data = {"_id": bson.Binary.from_uuid(property_id)}
@@ -86,7 +84,7 @@ def scrape_page(num, prefecture, page_num):
         # Check if we already have this link in the DB. If so, stop
         exists = collection.find_one({"link": link}) is not None
         if exists:
-            print("WE ARE HERE FOR SOME REASON")
+            logger.info(f"Scraping stopping. Link already exists: " + link)
             return False
 
         listing_data["link"] = link
@@ -198,14 +196,12 @@ def main():
             try:
                 num = f"{i:02}"
                 if not scrape_page(num, prefecture, page):
-                    print("HERE")
                     break
             except Exception as e:
                 logger.error("Unexpected error: " + str(e))
                 unexpected_errors += 1
 
                 if unexpected_errors >= 5:
-                    print("BREAK")
                     break
             page += 1
 

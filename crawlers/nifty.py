@@ -55,7 +55,6 @@ def fetch_with_backoff(url):
 # --- SCRAPER FUNCTION ---
 def scrape_page(prefecture, page_num):
     url = BASE_URL.format(prefecture, page_num)
-    logger.info(url)
     html = fetch_with_backoff(url)
     if not html:
         return False
@@ -87,6 +86,7 @@ def scrape_page(prefecture, page_num):
         # Check if we already have this link in the DB. If so, stop
         exists = collection.find_one({"link": link}) is not None
         if exists:
+            logger.info(f"Scraping stopping. Link already exists: " + link)
             return False
 
         listing_data["link"] = link
@@ -94,8 +94,6 @@ def scrape_page(prefecture, page_num):
         # Get the property type
         property_type = listing.find("span", class_="badge is-plain is-pj1 is-margin-right-xxs is-middle is-strong is-xs").get_text(strip=True)
         property_type = get_property_type(property_type)
-
-        logger.info(link)
 
         # Get the price
         price = listing.find("p").get_text(strip=True)
