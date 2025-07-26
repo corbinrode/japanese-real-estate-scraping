@@ -82,7 +82,9 @@ def scrape_page(page_num):
         exists = collection.find_one({"link": link}) is not None
         if exists:
             logger.info(f"Scraping stopping. Link already exists: " + link)
-            return False
+            # temp solution for initial scraping
+            continue
+            #return False
 
         listing_data["link"] = link
 
