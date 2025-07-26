@@ -46,11 +46,6 @@ def setup_logger(logger_name, log_file_base):
     Returns:
         logging.Logger: Configured logger instance.
     """
-    import logging
-    import logging.handlers
-    import os
-    from my_project import settings  # Make sure this import matches your project structure
-
     log_dir = settings.LOG_DIR
     os.makedirs(log_dir, exist_ok=True)
 
