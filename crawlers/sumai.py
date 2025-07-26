@@ -7,14 +7,14 @@ import os
 import bson
 from bs4 import BeautifulSoup
 from uuid import uuid4
-from helpers import translate_text, get_table_field_english, save_image, setup_logger
+from helpers import translate_text, get_table_field_english, save_image, setup_logger, convert_to_usd
 from config import settings
 
 # Set up logger
 logger = setup_logger('sumai', 'sumai')
 
 
-BASE_URL = "https://akiya.sumai.biz/page/{}?s&post_types=post"
+BASE_URL = "https://akiya.sumai.biz/category/%E5%A3%B2%E8%B2%B7%E4%BE%A1%E6%A0%BC%E5%B8%AF/page/{}"
 MAX_RETRIES = 5
 INITIAL_BACKOFF = 0.5  # in seconds
 
@@ -61,7 +61,7 @@ def scrape_page(page_num):
     content = soup.find('div', attrs={'id': 'content'})
 
     # Get the listings from the content
-    listings = content.find_all('div', class_="entry-thumbnail")
+    listings = content.find_all('article')
 
     if not listings:
         logger.warning(f"No listings found on page {page_num}")
@@ -72,7 +72,7 @@ def scrape_page(page_num):
         listing_data = {"_id": bson.Binary.from_uuid(property_id)}
 
         # get the link for the listing
-        link_tag = listing.find("div", class_="s-title").find("h1", class_="entry-title").find("a")
+        link_tag = listing.find("header", class_="entry-header").find("h1", class_="entry-title").find("a")
 
         # Get the href attribute
         link = link_tag["href"]
@@ -149,6 +149,18 @@ def scrape_page(page_num):
                 image_paths.append(image_path)
         
         listing_data["images"] = image_paths
+
+        # Update the sale price
+        if "Sale Price" in listing_data and listing_data["Sale Price"]:
+            listing_data["Sale Price Yen"] = listing_data["Sale Price"]
+            listing_data["Sale Price"] = convert_to_usd(listing_data["Sale Price"])
+        
+        # Store the prefecture separately
+        if "Property Location" in listing_data and listing_data["Property Location"]:
+            loc_parts = listing_data["Property Location"].split(",")
+            if len(loc_parts) > 2:
+                listing_data["Prefecture"] = loc_parts[-1].strip().lower()
+
         collection.insert_one(listing_data)
 
     return True
@@ -156,10 +168,18 @@ def scrape_page(page_num):
 # --- MAIN LOOP ---
 def main():
     page = 1
+    unexpected_errors = 0
     while True:
         logger.info(f"Scraping page {page}...")
-        if not  scrape_page(page):
-            break
+        try:
+            if not scrape_page(page):
+                break
+        except Exception as e:
+            logger.error("Unexpected error: " + str(e))
+            unexpected_errors += 1
+
+            if unexpected_errors >= 5:
+                break
         page += 1
 
     logger.info("Scraping complete.")

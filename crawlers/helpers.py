@@ -2,7 +2,9 @@ import deepl
 import requests
 import os
 import logging
+import re
 from config import settings
+from currency_converter import CurrencyConverter
 
 
 def translate_text(text, target_lang="EN-US"):
@@ -133,3 +135,28 @@ def get_area_label(label):
     }
 
     return japanese_to_english[label]
+
+
+def extract_yen_amount(text):
+    # Remove commas for easier parsing
+    cleaned = text.lower().replace(',', '')
+    
+    match = re.search(r'([\d.]+)\s*(million|thousand)?\s*yen', cleaned)
+    if not match:
+        return None
+    
+    number = float(match.group(1))
+    unit = match.group(2)
+
+    if unit == 'million':
+        number *= 1_000_000
+    elif unit == 'thousand':
+        number *= 1_000
+
+    return int(number)
+
+
+def convert_to_usd(yen_text):
+    c = CurrencyConverter()
+    yen = extract_yen_amount(yen_text)
+    return round(c.convert(yen, 'JPY', 'USD'), 2)

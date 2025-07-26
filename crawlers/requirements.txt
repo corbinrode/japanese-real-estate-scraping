@@ -3,3 +3,4 @@ beautifulsoup4
 deepl
 pydantic_settings
 pymongo
+currencyconverter

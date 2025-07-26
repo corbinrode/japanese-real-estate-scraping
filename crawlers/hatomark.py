@@ -10,7 +10,7 @@ from uuid import uuid4
 from helpers import translate_text, save_image, get_property_type, get_area_label, setup_logger, convert_to_usd
 from config import settings
 
-BASE_URL = "https://myhome.nifty.com/shinchiku-ikkodate/{}/search/{}/?subtype=bnh,buh&b2=30000000&pnum=40&sort=regDate-desc"
+BASE_URL = "https://www.hatomarksite.com/search/zentaku/buy/house/area/{}/list?price_b_from=&price_b_to=30000000&key_word=&land_area_all_from=&land_area_all_to=&land_area_unit=UNIT30&bld_area_from=&bld_area_to=&bld_area_unit=UNIT30&eki_walk=&expected_return_from=&expected_return_to=&limit=20&sort1=ASRT33&page={}"
 MAX_RETRIES = 5
 INITIAL_BACKOFF = 0.5  # in seconds
 
@@ -19,14 +19,14 @@ user = urllib.parse.quote_plus(settings.DB_USER)
 password = urllib.parse.quote_plus(settings.DB_PASSWORD)
 client = pymongo.MongoClient("mongodb://%s:%s@%s:%s" % (user, password, settings.DB_HOST, settings.DB_PORT))
 db = client.crawler_data
-collection = db.nifty_collection
+collection = db.hatomark_collection
 
 headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 }
 
 # Set up logger
-logger = setup_logger('nifty', 'nifty')
+logger = setup_logger('hatomark', 'hatomark')
 
 
 # --- REQUEST FUNCTION WITH JITTER AND BACKOFF ---
@@ -53,9 +53,9 @@ def fetch_with_backoff(url):
 
 
 # --- SCRAPER FUNCTION ---
-def scrape_page(prefecture, page_num):
-    url = BASE_URL.format(prefecture, page_num)
-    logger.info(url)
+def scrape_page(num, prefecture, page_num):
+    url = BASE_URL.format(num, page_num)
+    print(url)
     html = fetch_with_backoff(url)
     if not html:
         return False
@@ -63,80 +63,104 @@ def scrape_page(prefecture, page_num):
     soup = BeautifulSoup(html, "html.parser")
 
     # Find the main content on the page
-    content = soup.find('ul', class_="box is-space-sm")
+    content = soup.find("div", class_="row g-4 list-table")
 
     # Get the listings from the content
-    listings = content.find_all('li', recursive=False)
+    listings = content.find_all('div', class_="col-12", recursive=False)
 
     if not listings:
         logger.warning(f"No listings found on page {page_num}")
         return False
 
+    print(len(listings))
     for listing in listings:
         property_id = uuid4()
         listing_data = {"_id": bson.Binary.from_uuid(property_id)}
 
         # get the link for the listing
-        link_tag = listing.find("a")
+        link_tag = listing.find("div", class_="box-footer col-12 mt-2").find("a")
 
         # Get the href attribute
         link = link_tag["href"]
-        if link[0] == "/":
-            link = "https://myhome.nifty.com" + link_tag["href"]
-        
+
         # Check if we already have this link in the DB. If so, stop
         exists = collection.find_one({"link": link}) is not None
         if exists:
+            print("WE ARE HERE FOR SOME REASON")
             return False
 
         listing_data["link"] = link
 
         # Get the property type
-        property_type = listing.find("span", class_="badge is-plain is-pj1 is-margin-right-xxs is-middle is-strong is-xs").get_text(strip=True)
-        property_type = get_property_type(property_type)
+        property_type = listing.find("div", class_="tag-list").find_all("p")[0].get_text(strip=True)
+        property_type = translate_text(property_type)
 
-        logger.info(link)
+        # get the location
+        location_div = listing.find("div", class_="mb-1 address")
+        if location_div.a:
+            location_div.a.decompose() 
+        location = location_div.get_text(strip=True)
+        location = translate_text(location)
+
+        # get the transportation
+        transportation = []
+        trans_div = listing.find("div", class_="mb-1 traffic")
+        all_trans = trans_div.find_all("div")
+        for div in all_trans:
+            if div.a:
+                div.a.decompose
+            transportation.append(translate_text(div.get_text(strip=True)))
+        transportation = " / ".join(transportation)
+        
+        main_info_div = listing.find("div", class_="row g-2 row-cols-2")
+        info_divs = main_info_div.find_all("div")
 
         # Get the price
-        price = listing.find("p").get_text(strip=True)
-        price = translate_text(price)
-
-        # Get the location / transportation
-        loc_trans = listing.find_all("div", class_="box is-space-xs")
-        if len(loc_trans) >= 2:
-            loc_trans = loc_trans[1]
-        else:
-            loc_trans = loc_trans[0]
+        price = None
+        if len(info_divs) >= 1:
+            price = info_divs[0].find("p").get_text(strip=True)
+            price = translate_text(price)
         
-        loc_trans = loc_trans.find_all("span")
-        if len(loc_trans) >= 2:
-            transportation = loc_trans[0].get_text(strip=True)
-            transportation = translate_text(transportation)
+        # Get the building date
+        building_date = None
+        if len(info_divs) >= 2:
+            building_date = info_divs[1].find("p").get_text(strip=True)
+            building_date = translate_text(building_date)
 
-            location = loc_trans[1].get_text(strip=True)
-            location = translate_text(location)
-        else:
-            transportation = None
-            location = loc_trans[0].get_text(strip=True)
-            location = translate_text(location)
+        # Get the land area
+        land_area = None
+        if len(info_divs) >= 3:
+            land_area = info_divs[2].find("p").get_text(strip=True)
+            land_area = translate_text(land_area)
 
-        # Get the size information
-        area_info = listing.find_all("div", class_="box is-flex is-middle is-nowrap is-gap-4px")
-        for x in area_info:
-            field = x.find("span", class_="badge is-plain is-grey-dark is-strong is-xxs").get_text(strip=True)
-            field = get_area_label(field)
+        # Get the building area
+        building_area = None
+        if len(info_divs) >= 4:
+            building_area = info_divs[3].find("p").get_text(strip=True)
+            building_area = translate_text(building_area)
 
-            value = x.find("span", class_="text is-sm").get_text(strip=True)
-            value = translate_text(value)
+        # Get the number of floors
+        floors = None
+        if len(info_divs) >= 5:
+            floors = info_divs[4].find("p").get_text(strip=True)
+            floors = translate_text(floors)
 
-            listing_data[field] = value
-
+        # Get the floor plan
+        floor_plan = None
+        if len(info_divs) >= 6:
+            floor_plan = info_divs[5].find("p").get_text(strip=True)
+            floor_plan = translate_text(floor_plan)
 
         listing_data["Sale Price"] = convert_to_usd(price)
         listing_data["Sale Price Yen"] = price
         listing_data["Property Type"] = property_type
         listing_data["Property Location"] = location
         listing_data["Transportation"] = transportation
+        listing_data["Building - Construction Date"] = building_date
+        listing_data["Land - Area"] = land_area
+        listing_data["Building - Area"] = building_area
+        listing_data["Building - Structure"] = floors
+        listing_data["Building - Layout"] = floor_plan
         listing_data["Prefecture"] = prefecture
 
         # Get the img
@@ -145,7 +169,7 @@ def scrape_page(prefecture, page_num):
         if image_link:
             image_link = image_link.get("src")
             file_name = "{}.jpg".format(uuid4())
-            folder = os.path.join("images", "nifty", str(property_id))
+            folder = os.path.join("images", "hatomark", str(property_id))
             image_path = save_image(image_link, file_name, folder)
             image_paths.append(image_path)
 
@@ -164,20 +188,24 @@ def main():
             "nara", "wakayama", "hiroshima", "okayama", "tottori", "shimane", "yamaguchi", "tokushima",
             "kagawa", "ehime", "kochi", "fukuoka", "saga", "nagasaki", "kumamoto", "oita", "miyazaki",
             "kagoshima", "okinawa"]
-            
-    for prefecture in prefectures:
+
+    for i in range(1, len(prefectures)+1):
+        prefecture = prefectures[i-1]    
         page = 1
         unexpected_errors = 0
         while True:
             logger.info(f"Scraping area {prefecture}, page {page}...")
             try:
-                if not scrape_page(prefecture, page):
+                num = f"{i:02}"
+                if not scrape_page(num, prefecture, page):
+                    print("HERE")
                     break
             except Exception as e:
                 logger.error("Unexpected error: " + str(e))
                 unexpected_errors += 1
 
                 if unexpected_errors >= 5:
+                    print("BREAK")
                     break
             page += 1
 
