@@ -16,9 +16,13 @@ client = pymongo.MongoClient(f"mongodb://{user}:{password}@{settings.DB_HOST}:{s
 db = client.crawler_data
 
 # Settings
-REQUEST_TIMEOUT = 5  # seconds
+REQUEST_TIMEOUT = 10  # seconds
 BASE_IMAGE_PATH = "/home/admin/japanese-real-estate-scraping/crawlers"
 MAX_WORKERS = 20  # Tune this based on your system and network capacity
+
+headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+}
 
 def process_document(collection_name, doc):
     collection = db[collection_name]
@@ -29,7 +33,7 @@ def process_document(collection_name, doc):
         return
 
     try:
-        response = requests.get(link, timeout=REQUEST_TIMEOUT)
+        response = requests.get(link, timeout=REQUEST_TIMEOUT, headers=headers)
         if response.status_code in [404, 410]:
             logger.info(f"Deleting document with link {link} (status {response.status_code})")
 

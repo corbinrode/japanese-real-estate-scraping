@@ -89,16 +89,7 @@ def scrape_page(prefecture, page_num):
         existing_doc = collection.find_one({"link": link})
         if existing_doc:
             logger.info(f"Scraping stopping. Link already exists: " + link)
-            
-            # Update the document with a new createdAt field
-            collection.update_one(
-                {"_id": existing_doc["_id"]},
-                {"$set": {"createdAt": datetime.datetime.now(datetime.timezone.utc)}}
-            )
-
-            # temp solution for initial scraping
-            continue
-            #return False
+            return False
 
         listing_data["link"] = link
 
