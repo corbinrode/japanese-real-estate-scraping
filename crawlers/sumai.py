@@ -150,6 +150,7 @@ def scrape_page(page_num):
                 folder = os.path.join("images", "sumai", str(property_id))
                 image_path = save_image(image_link, file_name, folder)
                 image_paths.append(image_path)
+                break # Just get one image for now
         
         listing_data["images"] = image_paths
 
