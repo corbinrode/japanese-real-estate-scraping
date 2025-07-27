@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 from uuid import uuid4
 from helpers import translate_text, save_image, get_property_type, get_area_label, setup_logger, convert_to_usd
 from config import settings
-from datetime import datetime
+import datetime
 
 BASE_URL = "https://www.hatomarksite.com/search/zentaku/buy/house/area/{}/list?price_b_from=&price_b_to=30000000&key_word=&land_area_all_from=&land_area_all_to=&land_area_unit=UNIT30&bld_area_from=&bld_area_to=&bld_area_unit=UNIT30&eki_walk=&expected_return_from=&expected_return_to=&limit=20&sort1=ASRT33&page={}"
 MAX_RETRIES = 5
@@ -90,7 +90,7 @@ def scrape_page(num, prefecture, page_num):
             # Update the document with a new createdAt field
             collection.update_one(
                 {"_id": existing_doc["_id"]},
-                {"$set": {"createdAt": datetime.now(datetime.timezone.utc)}}
+                {"$set": {"createdAt": datetime.datetime.now(datetime.timezone.utc)}}
             )
 
             # temp solution for initial scraping
@@ -170,7 +170,7 @@ def scrape_page(num, prefecture, page_num):
         listing_data["Building - Structure"] = floors
         listing_data["Building - Layout"] = floor_plan
         listing_data["Prefecture"] = prefecture
-        listing_data["createdAt"] = datetime.now(datetime.timezone.utc)
+        listing_data["createdAt"] = datetime.datetime.now(datetime.timezone.utc)
 
         # Get the img
         image_paths = []

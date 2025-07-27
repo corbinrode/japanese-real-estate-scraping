@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 from uuid import uuid4
 from helpers import translate_text, save_image, get_property_type, get_area_label, setup_logger, convert_to_usd
 from config import settings
-from datetime import datetime
+import datetime
 
 BASE_URL = "https://myhome.nifty.com/shinchiku-ikkodate/{}/search/{}/?subtype=bnh,buh&b2=30000000&pnum=40&sort=regDate-desc"
 MAX_RETRIES = 5
@@ -93,7 +93,7 @@ def scrape_page(prefecture, page_num):
             # Update the document with a new createdAt field
             collection.update_one(
                 {"_id": existing_doc["_id"]},
-                {"$set": {"createdAt": datetime.now(datetime.timezone.utc)}}
+                {"$set": {"createdAt": datetime.datetime.now(datetime.timezone.utc)}}
             )
 
             # temp solution for initial scraping
@@ -147,7 +147,7 @@ def scrape_page(prefecture, page_num):
         listing_data["Property Location"] = location
         listing_data["Transportation"] = transportation
         listing_data["Prefecture"] = prefecture
-        listing_data["createdAt"] = datetime.now(datetime.timezone.utc)
+        listing_data["createdAt"] = datetime.datetime.now(datetime.timezone.utc)
 
         # Get the img
         image_paths = []
