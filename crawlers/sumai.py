@@ -66,7 +66,7 @@ def scrape_page(page_num):
 
     if not listings:
         logger.warning(f"No listings found on page {page_num}")
-        return False, "listings"
+        return False
 
     for listing in listings:
         property_id = uuid4()
@@ -82,16 +82,7 @@ def scrape_page(page_num):
         existing_doc = collection.find_one({"link": link})
         if existing_doc:
             logger.info(f"Scraping stopping. Link already exists: " + link)
-            
-            # Update the document with a new createdAt field
-            collection.update_one(
-                {"_id": existing_doc["_id"]},
-                {"$set": {"createdAt": datetime.datetime.now(datetime.timezone.utc)}}
-            )
-
-            # temp solution for initial scraping
-            continue
-            #return False
+            return False
 
         listing_data["link"] = link
 
