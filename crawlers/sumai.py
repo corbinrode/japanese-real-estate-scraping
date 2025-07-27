@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 from uuid import uuid4
 from helpers import translate_text, get_table_field_english, save_image, setup_logger, convert_to_usd
 from config import settings
+from datetime import datetime
 
 # Set up logger
 logger = setup_logger('sumai', 'sumai')
@@ -78,9 +79,16 @@ def scrape_page(page_num):
         link = link_tag["href"]
 
         # Check if we already have this link in the DB. If so, stop
-        exists = collection.find_one({"link": link}) is not None
-        if exists:
+        existing_doc = collection.find_one({"link": link})
+        if existing_doc:
             logger.info(f"Scraping stopping. Link already exists: " + link)
+            
+            # Update the document with a new createdAt field
+            collection.update_one(
+                {"_id": existing_doc["_id"]},
+                {"$set": {"createdAt": datetime.now(datetime.timezone.utc)}}
+            )
+
             # temp solution for initial scraping
             continue
             #return False
@@ -164,6 +172,7 @@ def scrape_page(page_num):
             if len(loc_parts) > 2:
                 listing_data["Prefecture"] = loc_parts[-1].strip().lower()
 
+        listing_data["createdAt"] = datetime.now(datetime.timezone.utc)
         collection.insert_one(listing_data)
 
     return True
