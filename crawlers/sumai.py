@@ -17,7 +17,6 @@ logger = setup_logger('sumai', 'sumai')
 BASE_URL = "https://akiya.sumai.biz/category/%E5%A3%B2%E8%B2%B7%E4%BE%A1%E6%A0%BC%E5%B8%AF/page/{}"
 MAX_RETRIES = 5
 INITIAL_BACKOFF = 0.5  # in seconds
-MAX_UNEXPECTED_ERRORS = 10
 
 # DB config
 user = urllib.parse.quote_plus(settings.DB_USER)
@@ -172,7 +171,6 @@ def scrape_page(page_num):
 # --- MAIN LOOP ---
 def main():
     page = 1
-    unexpected_errors = 0
     while True:
         logger.info(f"Scraping page {page}...")
         try:
@@ -180,11 +178,6 @@ def main():
                 break
         except Exception as e:
             logger.error("Unexpected error: " + str(e))
-            unexpected_errors += 1
-
-            if unexpected_errors >= MAX_UNEXPECTED_ERRORS:
-                logger.error("Too many unexpected errors. Exiting.....")
-                break
         page += 1
 
     logger.info("Scraping complete.")

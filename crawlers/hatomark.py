@@ -13,7 +13,6 @@ from config import settings
 BASE_URL = "https://www.hatomarksite.com/search/zentaku/buy/house/area/{}/list?price_b_from=&price_b_to=30000000&key_word=&land_area_all_from=&land_area_all_to=&land_area_unit=UNIT30&bld_area_from=&bld_area_to=&bld_area_unit=UNIT30&eki_walk=&expected_return_from=&expected_return_to=&limit=20&sort1=ASRT33&page={}"
 MAX_RETRIES = 5
 INITIAL_BACKOFF = 0.5  # in seconds
-MAX_UNEXPECTED_ERRORS = 10
 
 # DB config
 user = urllib.parse.quote_plus(settings.DB_USER)
@@ -191,7 +190,6 @@ def main():
     for i in range(1, len(prefectures)+1):
         prefecture = prefectures[i-1]    
         page = 1
-        unexpected_errors = 0
         while True:
             logger.info(f"Scraping area {prefecture}, page {page}...")
             try:
@@ -200,11 +198,6 @@ def main():
                     break
             except Exception as e:
                 logger.error("Unexpected error: " + str(e))
-                unexpected_errors += 1
-
-                if unexpected_errors >= MAX_UNEXPECTED_ERRORS:
-                    logger.error("Too many unexpected errors. Exiting.....")
-                    break
             page += 1
 
     logger.info("Scraping complete.")
