@@ -338,7 +338,7 @@ export default function Listings() {
                     {listing.floorPlan}
                   </div>
                 )}
-                {listing.price && (
+                {listing.price !== undefined && (
                   <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm rounded-full px-2 py-1 text-sm font-semibold text-slate-900">
                     {formatPrice(listing.price)}
                   </div>
@@ -382,7 +382,7 @@ export default function Listings() {
                     </div>
                   )}
                   
-                  {listing.price && (
+                  {listing.price !== undefined && (
                     <div className="flex justify-between">
                       <span className="text-slate-500">Price:</span>
                       <span className="font-medium text-blue-600">{formatPrice(listing.price)}</span>
