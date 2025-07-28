@@ -1,31 +1,31 @@
-# Build stage with better caching
-FROM node:18-slim AS builder
+# Build stage
+FROM node:18-alpine AS builder
 
-# Set the working directory
 WORKDIR /app
 
-# Copy package files first for better layer caching
+# Copy package files
 COPY package*.json ./
 
-# Install dependencies with cache mount for faster rebuilds
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci --only=production
+# Remove package-lock.json and node_modules to fix npm optional dependencies bug
+RUN rm -f package-lock.json && rm -rf node_modules
+
+# Install dependencies
+RUN npm install
 
 # Copy source code
 COPY . .
 
-# Build the application with cache mount
-RUN --mount=type=cache,target=/root/.npm \
-    npm run build
+# Build the application
+RUN npm run build
 
-# Production stage with nginx
+# Production stage
 FROM nginx:alpine
 
-# Copy built files from builder stage
-COPY --from=builder /app/build /usr/share/nginx/html
+# Copy built application from builder stage
+COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy custom nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Copy nginx configuration
+COPY nginx.conf /etc/nginx/nginx.conf
 
 # Expose port 80
 EXPOSE 80

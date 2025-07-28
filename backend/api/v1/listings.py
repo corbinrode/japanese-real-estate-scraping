@@ -22,14 +22,23 @@ def get_all_listings_filtered(
         query["Prefecture"] = prefecture
     if layout:
         query["Building - Layout"] = layout
+    
+    # Add price filtering to query - only include listings with numeric sale prices
+    query["Sale Price"] = {"$exists": True, "$type": "number"}
+    
     if sale_price_min is not None or sale_price_max is not None:
-        query["Sale Price"] = {}
+        if "Sale Price" not in query:
+            query["Sale Price"] = {}
         if sale_price_min is not None:
             query["Sale Price"]["$gte"] = sale_price_min
         if sale_price_max is not None:
             query["Sale Price"]["$lte"] = sale_price_max
 
-    sort_field = sort_by if sort_by in ["createdAt", "Sale Price"] else "createdAt"
+    # Map API parameter to database field name
+    if sort_by == "sale_price":
+        sort_field = "Sale Price"
+    else:
+        sort_field = "createdAt"
     sort_direction = 1 if sort_order == "asc" else -1
 
     all_results = []
@@ -45,15 +54,30 @@ def get_all_listings_filtered(
             "Building - Area": 1,
             "Land - Area": 1,
             "Building - Construction Date": 1,
+            "Building - Structure": 1,
             "Property Type": 1,
             "Property Location": 1,
             "Transportation": 1,
-            "createdAt": 1
+            "createdAt": 1,
+            "images": 1
         })
         all_results.extend(cursor)
 
+    # Handle sorting with mixed data types - put strings at end
+    def get_sort_value(item, field):
+        value = item.get(field)
+        if value is None:
+            return float('inf') if sort_direction == -1 else float('-inf')
+        
+        # If it's already a number, use it
+        if isinstance(value, (int, float)):
+            return value
+        
+        # All strings go to the end (use a very large negative number for descending, very large positive for ascending)
+        return float('-inf') if sort_direction == -1 else float('inf')
+    
     all_results.sort(
-        key=lambda x: x.get(sort_field, 0),
+        key=lambda x: get_sort_value(x, sort_field),
         reverse=(sort_direction == -1)
     )
 

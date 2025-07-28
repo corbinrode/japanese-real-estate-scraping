@@ -10,4 +10,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the application code
 COPY . .
 
+# Create images directory if it doesn't exist
+RUN mkdir -p /app/images
+
 CMD ["fastapi", "run", "--workers", "4", "main.py", "--port", "8000"]
