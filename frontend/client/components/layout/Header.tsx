@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
 import { Home, User, LogIn, LogOut } from "lucide-react";
+import logo from "@/src/assets/logo.png";
 
 export const Header = () => {
   const { isAuthenticated, user, logout } = useAuth();
@@ -12,7 +13,7 @@ export const Header = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-8">
             <Link to="/" className="flex items-center space-x-2">
-              <Home className="w-6 h-6 text-blue-600" />
+              <img src={logo} alt="Logo" className="w-8 h-8 object-contain" onError={(e) => console.log('Image failed to load:', e.target.src)} />
               <h1 className="text-2xl font-bold text-slate-900">Akiya Helper Listings</h1>
             </Link>
             
