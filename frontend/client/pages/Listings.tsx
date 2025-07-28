@@ -430,65 +430,85 @@ export default function Listings() {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-center space-x-2 bg-white rounded-lg shadow-sm border p-4">
-          <Button 
-            variant="outline" 
-            disabled={currentPage === 1 || loading}
-            onClick={() => setCurrentPage(1)}
-          >
-            First
-          </Button>
-          
-          <Button 
-            variant="outline" 
-            disabled={currentPage === 1 || loading}
-            onClick={() => setCurrentPage(prev => prev - 1)}
-          >
-            Previous
-          </Button>
-          
-          <div className="flex space-x-1">
-            {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
-              let pageNum;
-              if (totalPages <= 7) {
-                pageNum = i + 1;
-              } else if (currentPage <= 4) {
-                pageNum = i + 1;
-              } else if (currentPage >= totalPages - 3) {
-                pageNum = totalPages - 6 + i;
-              } else {
-                pageNum = currentPage - 3 + i;
-              }
+        <div className="bg-white rounded-lg shadow-sm border p-4">
+          {/* Mobile-friendly pagination */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            {/* Navigation buttons */}
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                disabled={currentPage === 1 || loading}
+                onClick={() => setCurrentPage(1)}
+              >
+                First
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                size="sm"
+                disabled={currentPage === 1 || loading}
+                onClick={() => setCurrentPage(prev => prev - 1)}
+              >
+                Prev
+              </Button>
+            </div>
+            
+            {/* Page numbers */}
+            <div className="flex flex-wrap justify-center gap-1 max-w-xs sm:max-w-none">
+              {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                let pageNum;
+                if (totalPages <= 7) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 4) {
+                  pageNum = i + 1;
+                } else if (currentPage >= totalPages - 3) {
+                  pageNum = totalPages - 6 + i;
+                } else {
+                  pageNum = currentPage - 3 + i;
+                }
 
-              return (
-                <Button
-                  key={pageNum}
-                  variant={currentPage === pageNum ? "default" : "outline"}
-                  size="sm"
-                  disabled={loading}
-                  onClick={() => setCurrentPage(pageNum)}
-                >
-                  {pageNum}
-                </Button>
-              );
-            })}
+                return (
+                  <Button
+                    key={pageNum}
+                    variant={currentPage === pageNum ? "default" : "outline"}
+                    size="sm"
+                    disabled={loading}
+                    onClick={() => setCurrentPage(pageNum)}
+                    className="min-w-[2.5rem]"
+                  >
+                    {pageNum}
+                  </Button>
+                );
+              })}
+            </div>
+
+            {/* Navigation buttons */}
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                disabled={currentPage === totalPages || loading}
+                onClick={() => setCurrentPage(prev => prev + 1)}
+              >
+                Next
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                size="sm"
+                disabled={currentPage === totalPages || loading}
+                onClick={() => setCurrentPage(totalPages)}
+              >
+                Last
+              </Button>
+            </div>
           </div>
-
-          <Button 
-            variant="outline" 
-            disabled={currentPage === totalPages || loading}
-            onClick={() => setCurrentPage(prev => prev + 1)}
-          >
-            Next
-          </Button>
           
-          <Button 
-            variant="outline" 
-            disabled={currentPage === totalPages || loading}
-            onClick={() => setCurrentPage(totalPages)}
-          >
-            Last
-          </Button>
+          {/* Page info */}
+          <div className="text-center text-sm text-slate-600 mt-3">
+            Page {currentPage} of {totalPages}
+          </div>
         </div>
       )}
     </div>
