@@ -126,7 +126,9 @@ def get_unique_building_layouts():
 
     for coll_name in db.list_collection_names():
         collection = db[coll_name]
-        layouts = collection.distinct("Building - Layout")
+        # Only get layouts from documents where "Sale Price" exists and is a number
+        query = {"Sale Price": {"$exists": True, "$type": "number"}}
+        layouts = collection.distinct("Building - Layout", query)
         unique_layouts.update(filter(None, layouts))  # Remove None values if any
 
     return {"unique_layouts": sorted(unique_layouts)}

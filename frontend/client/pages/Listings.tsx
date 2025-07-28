@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { RealEstateListing, PREFECTURES, FLOOR_PLANS, getPrefectureValue, getPrefectureDisplay } from "@shared/real-estate";
+import { RealEstateListing, PREFECTURES, getPrefectureValue, getPrefectureDisplay } from "@shared/real-estate";
 import { realEstateAPI } from "@shared/api";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -27,6 +27,30 @@ export default function Listings() {
   const [error, setError] = useState<string | null>(null);
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
+  
+  // Unique layouts state
+  const [uniqueLayouts, setUniqueLayouts] = useState<string[]>([]);
+  const [layoutsLoading, setLayoutsLoading] = useState(true);
+
+  // Fetch unique layouts from API
+  const fetchUniqueLayouts = async () => {
+    try {
+      setLayoutsLoading(true);
+      const response = await realEstateAPI.getUniqueLayouts();
+      setUniqueLayouts(response.unique_layouts);
+    } catch (err) {
+      console.error('Error fetching unique layouts:', err);
+      // Fallback to empty array if API fails
+      setUniqueLayouts([]);
+    } finally {
+      setLayoutsLoading(false);
+    }
+  };
+
+  // Fetch unique layouts on component mount
+  useEffect(() => {
+    fetchUniqueLayouts();
+  }, []);
 
   // Fetch listings from API
   const fetchListings = async () => {
@@ -208,9 +232,15 @@ export default function Listings() {
                   <SelectValue placeholder="Any layout" />
                 </SelectTrigger>
                 <SelectContent>
-                  {FLOOR_PLANS.map(plan => (
-                    <SelectItem key={plan} value={plan}>{plan}</SelectItem>
-                  ))}
+                  {layoutsLoading ? (
+                    <SelectItem value="" disabled>Loading layouts...</SelectItem>
+                  ) : uniqueLayouts.length === 0 ? (
+                    <SelectItem value="" disabled>No layouts found</SelectItem>
+                  ) : (
+                    uniqueLayouts.map(plan => (
+                      <SelectItem key={plan} value={plan}>{plan}</SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
               {filters.floorPlan && (
