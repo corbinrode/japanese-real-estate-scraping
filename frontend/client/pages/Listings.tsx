@@ -300,7 +300,7 @@ export default function Listings() {
           </div>
         </div>
 
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="flex gap-2">
             <Button variant="outline" onClick={clearFilters}>
               Clear All Filters
@@ -309,7 +309,7 @@ export default function Listings() {
               Search
             </Button>
           </div>
-          <div className="text-sm text-slate-600">
+          <div className="text-sm text-slate-600 text-center sm:text-right">
             Showing {startIndex + 1}-{Math.min(startIndex + itemsPerPage, totalCount)} of {totalCount} results
           </div>
         </div>
