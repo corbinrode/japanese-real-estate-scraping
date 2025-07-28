@@ -10,13 +10,28 @@ from uuid import uuid4
 from helpers import translate_text, save_image, get_property_type, get_area_label, setup_logger, convert_to_usd
 from config import settings
 import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 
 BASE_URL = "https://myhome.nifty.com/shinchiku-ikkodate/{}/search/{}/?subtype=bnh,buh&b2=30000000&pnum=40&sort=regDate-desc"
 MAX_RETRIES = 5
 INITIAL_BACKOFF = 0.5  # in seconds
-MAX_UNEXPECTED_ERRORS = 10
+MAX_WORKERS = 4
 
-# DB config
+# Thread-local storage for database connections
+thread_local = threading.local()
+
+def get_db_connection():
+    """Get thread-local database connection"""
+    if not hasattr(thread_local, 'client'):
+        user = urllib.parse.quote_plus(settings.DB_USER)
+        password = urllib.parse.quote_plus(settings.DB_PASSWORD)
+        thread_local.client = pymongo.MongoClient("mongodb://%s:%s@%s:%s" % (user, password, settings.DB_HOST, settings.DB_PORT))
+        thread_local.db = thread_local.client.crawler_data
+        thread_local.collection = thread_local.db.nifty_collection
+    return thread_local.collection
+
+# DB config (for backward compatibility)
 user = urllib.parse.quote_plus(settings.DB_USER)
 password = urllib.parse.quote_plus(settings.DB_PASSWORD)
 client = pymongo.MongoClient("mongodb://%s:%s@%s:%s" % (user, password, settings.DB_HOST, settings.DB_PORT))
@@ -72,6 +87,9 @@ def scrape_page(prefecture, page_num):
     if not listings:
         logger.warning(f"No listings found on page {page_num}")
         return False
+
+    # Get thread-local database connection
+    collection = get_db_connection()
 
     for listing in listings:
         property_id = uuid4()
@@ -158,6 +176,27 @@ def scrape_page(prefecture, page_num):
     return True
 
 # --- MAIN LOOP ---
+def process_prefecture(prefecture):
+    """Process a single prefecture - this function will be run in parallel"""
+    logger.info(f"Starting to process prefecture: {prefecture}")
+    page = 1
+    total_pages = 0
+    
+    while True:
+        logger.info(f"Scraping area {prefecture}, page {page}...")
+        try:
+            if not scrape_page(prefecture, page):
+                break
+            total_pages += 1
+        except Exception as e:
+            logger.error(f"Unexpected error processing {prefecture}, page {page}: {str(e)}")
+            break
+
+        page += 1
+    
+    logger.info(f"Completed processing prefecture: {prefecture} (processed {total_pages} pages)")
+    return prefecture, total_pages
+
 def main():
     prefectures = ["hokkaido", "aomori", "iwate", "miyagi", "akita", "yamagata", "fukushima", "tokyo", "kanagawa",
             "saitama", "chiba", "ibaraki", "tochigi", "gunma", "niigata", "yamanashi", "nagano", "toyama",
@@ -165,20 +204,48 @@ def main():
             "nara", "wakayama", "hiroshima", "okayama", "tottori", "shimane", "yamaguchi", "tokushima",
             "kagawa", "ehime", "kochi", "fukuoka", "saga", "nagasaki", "kumamoto", "oita", "miyazaki",
             "kagoshima", "okinawa"]
-            
-    for prefecture in prefectures:
-        page = 1
-        while True:
-            logger.info(f"Scraping area {prefecture}, page {page}...")
+    
+    # Configuration for parallel processing
+    # Adjust these values based on your system capabilities and rate limiting needs
+    max_workers = MAX_WORKERS  # Number of concurrent threads
+    # You can also set this based on CPU cores: max_workers = min(32, (os.cpu_count() or 1) + 4)
+    
+    logger.info(f"Starting parallel processing with {max_workers} workers for {len(prefectures)} prefectures")
+    start_time = time.time()
+    
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all prefectures for processing
+        future_to_prefecture = {executor.submit(process_prefecture, prefecture): prefecture 
+                              for prefecture in prefectures}
+        
+        # Process completed tasks as they finish
+        completed_prefectures = []
+        failed_prefectures = []
+        
+        for future in as_completed(future_to_prefecture):
+            prefecture = future_to_prefecture[future]
             try:
-                if not scrape_page(prefecture, page):
-                    break
+                prefecture_name, pages_processed = future.result()
+                completed_prefectures.append((prefecture_name, pages_processed))
+                logger.info(f"Completed: {prefecture_name} - {pages_processed} pages")
             except Exception as e:
-                logger.error("Unexpected error: " + str(e))
-
-            page += 1
-
-    logger.info("Scraping complete.")
+                failed_prefectures.append(prefecture)
+                logger.error(f"Prefecture {prefecture} generated an exception: {e}")
+    
+    # Summary
+    end_time = time.time()
+    total_time = end_time - start_time
+    total_pages = sum(pages for _, pages in completed_prefectures)
+    
+    logger.info(f"Scraping complete in {total_time:.2f} seconds")
+    logger.info(f"Successfully processed {len(completed_prefectures)} prefectures, {total_pages} total pages")
+    if failed_prefectures:
+        logger.warning(f"Failed to process {len(failed_prefectures)} prefectures: {failed_prefectures}")
+    
+    # Performance metrics
+    if total_pages > 0:
+        pages_per_second = total_pages / total_time
+        logger.info(f"Performance: {pages_per_second:.2f} pages/second")
 
 if __name__ == "__main__":
     main()
