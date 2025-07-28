@@ -13,7 +13,7 @@ export const Header = () => {
           <div className="flex items-center space-x-8">
             <Link to="/" className="flex items-center space-x-2">
               <Home className="w-6 h-6 text-blue-600" />
-              <h1 className="text-2xl font-bold text-slate-900">AHListings</h1>
+              <h1 className="text-2xl font-bold text-slate-900">Akiya Helper Listings</h1>
             </Link>
             
             <nav className="hidden md:flex space-x-6">
