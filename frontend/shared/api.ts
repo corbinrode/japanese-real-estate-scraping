@@ -7,7 +7,7 @@
 import { getPrefectureDisplay } from "./real-estate";
 
 // API base URL - adjust based on your environment
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 // Backend data structure interfaces
 export interface BackendListing {
