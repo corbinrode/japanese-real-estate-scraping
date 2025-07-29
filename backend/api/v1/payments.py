@@ -1,23 +1,30 @@
 from datetime import datetime, timedelta
-from typing import Optional
-import stripe
 from fastapi import APIRouter, Depends, HTTPException, status, Request
-from bson import ObjectId
 from core.models import (
-    SubscriptionCreate, PaymentResponse, Subscription, 
-    SubscriptionStatus, User, UserCreate
+    SubscriptionCreateWithUser, SubscriptionCreate, PaymentResponse, 
+    User
 )
-from core.auth import get_current_active_user, get_password_hash, get_user_by_email
+from core.auth import get_current_active_user, get_user_by_email
 from core.config import settings
 from core.database import user_db
+from core.payments import (
+    PLAN_PRICE,
+    process_stripe_subscription_with_user,
+    process_stripe_renewal,
+    reactivate_cancelled_subscription,
+    process_stripe_subscription_for_user,
+    handle_subscription_payment_succeeded,
+    handle_subscription_payment_failed,
+    handle_subscription_cancelled,
+    handle_subscription_updated
+)
+import stripe
 
 router = APIRouter()
 
 # Initialize Stripe
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
-# Single subscription plan price
-PLAN_PRICE = 20.00
 
 @router.get("/config")
 async def get_payment_config():
@@ -28,17 +35,9 @@ async def get_payment_config():
         }
     }
 
-# Updated model to include user data
-class SubscriptionCreateWithUser(SubscriptionCreate):
-    # User registration data
-    name: str
-    email: str
-    password: str
 
 @router.post("/create-subscription", response_model=PaymentResponse)
-async def create_subscription(
-    subscription_data: SubscriptionCreateWithUser
-):
+async def create_subscription(subscription_data: SubscriptionCreateWithUser):
     """Create a new subscription along with user account"""
     
     # Check if user already exists
@@ -63,109 +62,6 @@ async def create_subscription(
             detail=f"Payment processing failed: {str(e)}"
         )
 
-async def process_stripe_subscription_with_user(
-    subscription_data: SubscriptionCreateWithUser, 
-    plan_price: float
-) -> PaymentResponse:
-    """Process Stripe subscription and create user account"""
-    try:
-        # Create Stripe customer
-        customer = stripe.Customer.create(
-            email=subscription_data.email,
-            name=subscription_data.name
-        )
-        
-        # Attach payment method to customer
-        payment_method = stripe.PaymentMethod.attach(
-            subscription_data.payment_token,
-            customer=customer.id
-        )
-        
-        # Set as default payment method
-        stripe.Customer.modify(
-            customer.id,
-            invoice_settings={"default_payment_method": payment_method.id}
-        )
-        
-        # Create or get existing product
-        try:
-            # Try to find existing product
-            products = stripe.Product.list(name="Akiya Helper Listings Premium Access", limit=1)
-            
-            if products.data:
-                product_id = products.data[0].id
-            else:
-                # Create new product
-                product = stripe.Product.create(name="Akiya Helper Listings Premium Access")
-                product_id = product.id
-        except Exception:
-            # Create product inline if lookup fails
-            product = stripe.Product.create(name="Akiya Helper Listings Premium Access")
-            product_id = product.id
-
-        # Create subscription with automatic renewal
-        subscription_params = {
-            "customer": customer.id,
-            "payment_behavior": "default_incomplete",
-            "payment_settings": {
-                "save_default_payment_method": "on_subscription"
-            },
-            "expand": ["latest_invoice.payment_intent"],
-            "items": [{
-                "price_data": {
-                    "currency": "usd",
-                    "product": product_id,
-                    "unit_amount": int(plan_price * 100),
-                    "recurring": {"interval": "month"}
-                }
-            }]
-        }
-        
-        stripe_subscription = stripe.Subscription.create(**subscription_params)
-        
-        # Create user account
-        hashed_password = get_password_hash(subscription_data.password)
-        user_doc = {
-            "email": subscription_data.email,
-            "name": subscription_data.name,
-            "role": "user",
-            "hashed_password": hashed_password,
-            "is_active": True,
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow()
-        }
-        
-        users_collection = user_db["users"]
-        user_result = users_collection.insert_one(user_doc)
-        user_id = str(user_result.inserted_id)
-        
-        # Create subscription record
-        subscription_doc = {
-            "user_id": user_id,
-            "plan": "premium",
-            "status": "active",
-            "payment_provider": "stripe",
-            "stripe_subscription_id": stripe_subscription.id,
-            "starts_at": datetime.utcnow(),
-            "ends_at": datetime.utcnow() + timedelta(days=30),
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow()
-        }
-        
-        subscriptions_collection = user_db["subscriptions"]
-        subscription_result = subscriptions_collection.insert_one(subscription_doc)
-        
-        return PaymentResponse(
-            success=True,
-            subscription_id=str(subscription_result.inserted_id),
-            message="Account created and subscription activated successfully!"
-        )
-        
-    except stripe.error.StripeError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Stripe error: {str(e)}"
-        )
 
 @router.post("/renew-subscription", response_model=PaymentResponse)
 async def renew_subscription(
@@ -174,24 +70,37 @@ async def renew_subscription(
 ):
     """Renew an expired or cancelled subscription"""
     
-    # Check if user has an existing subscription that needs renewal
+    # Check if user has an existing subscription
     subscriptions_collection = user_db["subscriptions"]
     existing_subscription = subscriptions_collection.find_one({
         "user_id": current_user.id
     }, sort=[("created_at", -1)])  # Get most recent subscription
     
-    if existing_subscription and existing_subscription.get("status") == "active":
-        # Check if it's actually expired
+    # If user has a cancelled subscription that's still within the active period,
+    # just reactivate it instead of creating a new one
+    if existing_subscription:
         ends_at = existing_subscription.get("ends_at")
         if isinstance(ends_at, str):
             ends_at = datetime.fromisoformat(ends_at.replace('Z', '+00:00'))
         
+        # Check if subscription is still within active period
         if ends_at > datetime.utcnow():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="You already have an active subscription"
-            )
+            if existing_subscription.get("status") == "cancelled":
+                # Reactivate the cancelled subscription (no payment required)
+                try:
+                    return await reactivate_cancelled_subscription(existing_subscription, current_user)
+                except Exception as e:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Failed to reactivate subscription: {str(e)}"
+                    )
+            elif existing_subscription.get("status") == "active":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="You already have an active subscription"
+                )
     
+    # If no existing subscription or it's truly expired, create a new one
     try:
         if subscription_data.payment_provider.value == "stripe":
             return await process_stripe_renewal(subscription_data, current_user, PLAN_PRICE)
@@ -206,116 +115,63 @@ async def renew_subscription(
             detail=f"Payment processing failed: {str(e)}"
         )
 
-async def process_stripe_renewal(
-    subscription_data: SubscriptionCreate, 
-    user: User,
-    plan_price: float
-) -> PaymentResponse:
-    """Process Stripe subscription renewal"""
-    try:
-        # Get or create Stripe customer
-        customers = stripe.Customer.list(email=user.email, limit=1)
-        
-        if customers.data:
-            customer = customers.data[0]
-        else:
-            customer = stripe.Customer.create(
-                email=user.email,
-                name=user.name
-            )
-        
-        # Attach payment method to customer
-        payment_method = stripe.PaymentMethod.attach(
-            subscription_data.payment_token,
-            customer=customer.id
-        )
-        
-        # Set as default payment method
-        stripe.Customer.modify(
-            customer.id,
-            invoice_settings={"default_payment_method": payment_method.id}
-        )
-        
-        # Create or get existing product
-        try:
-            # Try to find existing product
-            products = stripe.Product.list(name="Akiya Helper Listings Premium Access", limit=1)
-            
-            if products.data:
-                product_id = products.data[0].id
-            else:
-                # Create new product
-                product = stripe.Product.create(name="Akiya Helper Listings Premium Access")
-                product_id = product.id
-        except Exception:
-            # Create product inline if lookup fails
-            product = stripe.Product.create(name="Akiya Helper Listings Premium Access")
-            product_id = product.id
 
-        # Create new subscription with product ID
-        subscription_params = {
-            "customer": customer.id,
-            "payment_behavior": "default_incomplete",
-            "payment_settings": {
-                "save_default_payment_method": "on_subscription"
-            },
-            "expand": ["latest_invoice.payment_intent"],
-            "items": [{
-                "price_data": {
-                    "currency": "usd",
-                    "product": product_id,
-                    "unit_amount": int(plan_price * 100),
-                    "recurring": {"interval": "month"}
-                }
-            }]
-        }
+@router.post("/create-subscription-for-user", response_model=PaymentResponse)
+async def create_subscription_for_user(
+    subscription_data: SubscriptionCreate,
+    current_user: User = Depends(get_current_active_user)
+):
+    """Create a new subscription for an existing authenticated user"""
+    
+    # Check if user already has an active subscription
+    subscriptions_collection = user_db["subscriptions"]
+    existing_subscription = subscriptions_collection.find_one({
+        "user_id": current_user.id,
+        "status": "active"
+    })
+    
+    if existing_subscription:
+        # Check if it's actually expired
+        ends_at = existing_subscription.get("ends_at")
+        if isinstance(ends_at, str):
+            ends_at = datetime.fromisoformat(ends_at.replace('Z', '+00:00'))
         
-        stripe_subscription = stripe.Subscription.create(**subscription_params)
-        
-        # Create new subscription record
-        subscription_doc = {
-            "user_id": user.id,
-            "plan": "premium",
-            "status": "active",
-            "payment_provider": "stripe",
-            "stripe_subscription_id": stripe_subscription.id,
-            "starts_at": datetime.utcnow(),
-            "ends_at": datetime.utcnow() + timedelta(days=30),
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow()
-        }
-        
-        subscriptions_collection = user_db["subscriptions"]
-        subscription_result = subscriptions_collection.insert_one(subscription_doc)
-        
-        return PaymentResponse(
-            success=True,
-            subscription_id=str(subscription_result.inserted_id),
-            message="Subscription renewed successfully!"
-        )
-        
-    except stripe.error.StripeError as e:
+        if ends_at > datetime.utcnow():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You already have an active subscription"
+            )
+    
+    try:
+        if subscription_data.payment_provider.value == "stripe":
+            return await process_stripe_subscription_for_user(subscription_data, current_user, PLAN_PRICE)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only Stripe payment provider is supported"
+            )
+    except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Stripe error: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Payment processing failed: {str(e)}"
         )
+
 
 @router.get("/subscription")
 async def get_user_subscription(current_user: User = Depends(get_current_active_user)):
-    """Get current user's subscription"""
+    """Get current user's subscription information"""
     subscriptions_collection = user_db["subscriptions"]
-    # Get the most recent subscription (active, cancelled, expired, etc.)
     subscription_doc = subscriptions_collection.find_one({
         "user_id": current_user.id
     }, sort=[("created_at", -1)])  # Get most recent subscription
     
-    if not subscription_doc:
-        return {"subscription": None, "message": "No subscription found"}
+    if subscription_doc:
+        subscription_doc["id"] = str(subscription_doc["_id"])
+        del subscription_doc["_id"]
+        return {"subscription": subscription_doc}
     
-    subscription_doc["id"] = str(subscription_doc["_id"])
-    del subscription_doc["_id"]
-    
-    return {"subscription": subscription_doc}
+    return {"subscription": None}
+
 
 @router.post("/cancel-subscription")
 async def cancel_subscription(current_user: User = Depends(get_current_active_user)):
@@ -377,6 +233,44 @@ async def cancel_subscription(current_user: User = Depends(get_current_active_us
             detail=f"Failed to cancel subscription: {str(e)}"
         ) 
 
+
+@router.post("/reactivate-subscription", response_model=PaymentResponse)
+async def reactivate_subscription(current_user: User = Depends(get_current_active_user)):
+    """Reactivate a cancelled subscription that's still within the active period"""
+    
+    # Check if user has a cancelled subscription that can be reactivated
+    subscriptions_collection = user_db["subscriptions"]
+    existing_subscription = subscriptions_collection.find_one({
+        "user_id": current_user.id,
+        "status": "cancelled"
+    }, sort=[("created_at", -1)])  # Get most recent cancelled subscription
+    
+    if not existing_subscription:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No cancelled subscription found to reactivate"
+        )
+    
+    # Check if subscription is still within active period
+    ends_at = existing_subscription.get("ends_at")
+    if isinstance(ends_at, str):
+        ends_at = datetime.fromisoformat(ends_at.replace('Z', '+00:00'))
+    
+    if ends_at <= datetime.utcnow():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Subscription has expired and cannot be reactivated. Please create a new subscription."
+        )
+    
+    try:
+        return await reactivate_cancelled_subscription(existing_subscription, current_user)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to reactivate subscription: {str(e)}"
+        )
+
+
 @router.post("/stripe-webhook")
 async def stripe_webhook(request: Request):
     """Handle Stripe webhook events"""
@@ -404,96 +298,21 @@ async def stripe_webhook(request: Request):
     
     return {"status": "success"}
 
-async def handle_subscription_payment_succeeded(invoice):
-    """Handle successful subscription payment (renewal)"""
-    subscription_id = invoice.get('subscription')
-    if not subscription_id:
-        return
-    
-    subscriptions_collection = user_db["subscriptions"]
-    subscription_doc = subscriptions_collection.find_one({
-        "stripe_subscription_id": subscription_id
-    })
-    
-    if subscription_doc:
-        # Extend subscription by 30 days
-        current_end = subscription_doc.get('ends_at', datetime.utcnow())
-        if isinstance(current_end, str):
-            current_end = datetime.fromisoformat(current_end.replace('Z', '+00:00'))
-        
-        new_end_date = max(datetime.utcnow(), current_end) + timedelta(days=30)
-        
-        subscriptions_collection.update_one(
-            {"_id": subscription_doc["_id"]},
-            {"$set": {
-                "status": "active",
-                "ends_at": new_end_date,
-                "updated_at": datetime.utcnow()
-            }}
-        )
 
-async def handle_subscription_payment_failed(invoice):
-    """Handle failed subscription payment"""
-    subscription_id = invoice.get('subscription')
-    if not subscription_id:
-        return
-    
-    subscriptions_collection = user_db["subscriptions"]
-    subscription_doc = subscriptions_collection.find_one({
-        "stripe_subscription_id": subscription_id
-    })
-    
-    if subscription_doc:
-        # Mark subscription as expired after payment failure
-        subscriptions_collection.update_one(
-            {"_id": subscription_doc["_id"]},
-            {"$set": {
-                "status": "expired",
-                "updated_at": datetime.utcnow()
-            }}
-        )
-
-async def handle_subscription_cancelled(subscription):
-    """Handle subscription cancellation"""
-    subscription_id = subscription['id']
-    
-    subscriptions_collection = user_db["subscriptions"]
-    subscription_doc = subscriptions_collection.find_one({
-        "stripe_subscription_id": subscription_id
-    })
-    
-    if subscription_doc:
-        subscriptions_collection.update_one(
-            {"_id": subscription_doc["_id"]},
-            {"$set": {
-                "status": "expired" if datetime.utcnow() > subscription_doc.get("ends_at", datetime.utcnow()) else "cancelled",
-                "updated_at": datetime.utcnow()
-            }}
-        )
-
-async def handle_subscription_updated(subscription):
-    """Handle subscription updates"""
-    subscription_id = subscription['id']
-    
-    subscriptions_collection = user_db["subscriptions"]
-    subscription_doc = subscriptions_collection.find_one({
-        "stripe_subscription_id": subscription_id
-    })
-    
-    if subscription_doc:
-        # Update subscription status based on Stripe status
-        stripe_status = subscription.get('status')
-        our_status = "active"
-        
-        if stripe_status in ['canceled', 'unpaid']:
-            our_status = "cancelled"
-        elif stripe_status in ['past_due', 'incomplete_expired']:
-            our_status = "expired"
-        
-        subscriptions_collection.update_one(
-            {"_id": subscription_doc["_id"]},
-            {"$set": {
-                "status": our_status,
-                "updated_at": datetime.utcnow()
-            }}
-        ) 
+@router.get("/plan")
+async def get_subscription_plan():
+    """Get subscription plan information"""
+    return {
+        "plan": {
+            "name": "premium",
+            "price": PLAN_PRICE,
+            "features": [
+                "Access to all property listings",
+                "Detailed property information",
+                "Contact information for properties",
+                "Advanced search and filtering",
+                "Monthly updates"
+            ],
+            "duration_days": 30
+        }
+    } 

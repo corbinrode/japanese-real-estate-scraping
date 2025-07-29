@@ -72,6 +72,12 @@ export interface SubscriptionCreate {
   password: string;
 }
 
+export interface SubscriptionCreateForUser {
+  plan: 'premium';
+  payment_provider: 'stripe';
+  payment_token: string;
+}
+
 export interface PaymentResponse {
   success: boolean;
   subscription_id?: string;
@@ -195,7 +201,14 @@ export class RealEstateAPI {
     return response.json();
   }
 
-  // Authentication methods - register method removed since accounts are created during subscription
+  // Authentication methods
+  async register(registerData: RegisterData): Promise<{ message: string; user_id: string }> {
+    return this.fetchAPI<{ message: string; user_id: string }>('/v1/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(registerData),
+    });
+  }
+
   async login(credentials: LoginCredentials): Promise<LoginResponse> {
     // FastAPI OAuth2PasswordRequestForm expects form data, not JSON
     const formData = new URLSearchParams();
@@ -293,6 +306,13 @@ export class RealEstateAPI {
     });
   }
 
+  async createSubscriptionForUser(subscriptionData: SubscriptionCreateForUser): Promise<PaymentResponse> {
+    return this.fetchAPI<PaymentResponse>('/v1/payments/create-subscription-for-user', {
+      method: 'POST',
+      body: JSON.stringify(subscriptionData),
+    });
+  }
+
   async getUserSubscription(): Promise<any> {
     return this.fetchAPI<any>('/v1/payments/subscription');
   }
@@ -311,6 +331,12 @@ export class RealEstateAPI {
     return this.fetchAPI<PaymentResponse>('/v1/payments/renew-subscription', {
       method: 'POST',
       body: JSON.stringify(renewalData),
+    });
+  }
+
+  async reactivateSubscription(): Promise<PaymentResponse> {
+    return this.fetchAPI<PaymentResponse>('/v1/payments/reactivate-subscription', {
+      method: 'POST',
     });
   }
 

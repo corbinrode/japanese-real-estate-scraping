@@ -293,27 +293,6 @@ export default function AccountSettings() {
             </CardContent>
           </Card>
 
-          {/* Quick Actions */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
-              <CardDescription>
-                Manage your account and subscription
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col sm:flex-row gap-4">
-                <Button 
-                  onClick={() => window.location.href = '/subscription'}
-                  className="flex items-center gap-2"
-                >
-                  <Shield className="h-4 w-4" />
-                  Manage Subscription
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
           {/* Account Status */}
           <Card>
             <CardHeader>

@@ -1,14 +1,23 @@
 import { useState, useMemo, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { RealEstateListing, PREFECTURES, getPrefectureValue, getPrefectureDisplay } from "@shared/real-estate";
 import { realEstateAPI } from "@shared/api";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { CheckCircle, Lock, CreditCard } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 type SortOption = "price-asc" | "price-desc" | "date-new" | "date-old";
 
 export default function Listings() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { user, subscription } = useAuth();
+  const [successMessage, setSuccessMessage] = useState<string>('');
+  
   const [filters, setFilters] = useState({
     prefecture: "",
     priceMin: "",
@@ -32,8 +41,101 @@ export default function Listings() {
   const [uniqueLayouts, setUniqueLayouts] = useState<string[]>([]);
   const [layoutsLoading, setLayoutsLoading] = useState(true);
 
+  // Handle success message from navigation
+  useEffect(() => {
+    if (location.state?.message) {
+      setSuccessMessage(location.state.message);
+      // Clear the message after 5 seconds
+      const timer = setTimeout(() => {
+        setSuccessMessage('');
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [location.state]);
+
+  // Check if user has active subscription
+  const hasActiveSubscription = () => {
+    // Admin users always have access
+    if (user?.role === 'admin') {
+      return true;
+    }
+    
+    // Check if subscription is active and not expired
+    if (!subscription) {
+      return false;
+    }
+    
+    const isActive = subscription.status === 'active' || 
+                    (subscription.status === 'cancelled' && new Date(subscription.ends_at) > new Date());
+    
+    return isActive;
+  };
+
+  // Subscription prompt component
+  const SubscriptionPrompt = () => (
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+      <div className="text-center">
+        <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-8">
+          <Lock className="w-12 h-12 text-blue-600" />
+        </div>
+        
+        <h1 className="text-3xl font-bold text-gray-900 mb-4">
+          Premium Subscription Required
+        </h1>
+        
+        <p className="text-lg text-gray-600 mb-8 max-w-2xl mx-auto">
+          Please sign up for a subscription to access our premium Japanese real estate listings. 
+          Get unlimited access to properties across Japan with detailed information and high-quality images.
+        </p>
+        
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8 max-w-md mx-auto">
+          <div className="flex items-center justify-center mb-4">
+            <CreditCard className="w-6 h-6 text-blue-600 mr-2" />
+            <span className="text-2xl font-bold text-blue-900">$20/month</span>
+          </div>
+          <ul className="text-sm text-blue-800 space-y-2">
+            <li className="flex items-center">
+              <CheckCircle className="w-4 h-4 mr-2 text-green-600" />
+              Access to all real estate listings
+            </li>
+            <li className="flex items-center">
+              <CheckCircle className="w-4 h-4 mr-2 text-green-600" />
+              High-quality property images
+            </li>
+            <li className="flex items-center">
+              <CheckCircle className="w-4 h-4 mr-2 text-green-600" />
+              Detailed property information
+            </li>
+            <li className="flex items-center">
+              <CheckCircle className="w-4 h-4 mr-2 text-green-600" />
+              Cancel anytime
+            </li>
+          </ul>
+        </div>
+        
+        <Button 
+          onClick={() => navigate('/subscription/manage')}
+          size="lg"
+          className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 text-lg"
+        >
+          Manage Subscription
+        </Button>
+        
+        <p className="text-sm text-gray-500 mt-4">
+          Already have a subscription? Check your subscription status in your account settings.
+        </p>
+      </div>
+    </div>
+  );
+
   // Fetch unique layouts from API
   const fetchUniqueLayouts = async () => {
+    // Don't fetch if user doesn't have active subscription
+    if (!hasActiveSubscription()) {
+      setLayoutsLoading(false);
+      return;
+    }
+
     try {
       setLayoutsLoading(true);
       const response = await realEstateAPI.getUniqueLayouts();
@@ -47,17 +149,28 @@ export default function Listings() {
     }
   };
 
-  // Fetch unique layouts on component mount
+  // Fetch unique layouts on component mount and when subscription status changes
   useEffect(() => {
-    fetchUniqueLayouts();
-  }, []);
+    if (hasActiveSubscription()) {
+      fetchUniqueLayouts();
+    } else {
+      setLayoutsLoading(false);
+      setUniqueLayouts([]);
+    }
+  }, [user, subscription]);
 
   // Fetch listings from API
   const fetchListings = async () => {
+    // Don't fetch if user doesn't have active subscription
+    if (!hasActiveSubscription()) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    
     try {
-      setLoading(true);
-      setError(null);
-      
       const params: any = {
         page: currentPage,
         limit: itemsPerPage
@@ -102,10 +215,17 @@ export default function Listings() {
     }
   };
 
-  // Fetch listings when sorting, pagination, or search trigger changes
+  // Fetch listings when sorting, pagination, search trigger changes, or subscription status changes
   useEffect(() => {
-    fetchListings();
-  }, [sortBy, currentPage, itemsPerPage, searchTrigger]);
+    if (hasActiveSubscription()) {
+      fetchListings();
+    } else {
+      setLoading(false);
+      setListings([]);
+      setTotalCount(0);
+      setTotalPages(0);
+    }
+  }, [sortBy, currentPage, itemsPerPage, searchTrigger, user, subscription]);
 
   const formatPrice = (price: number) => {
     return `$${price.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
@@ -157,8 +277,23 @@ export default function Listings() {
 
   const startIndex = (currentPage - 1) * itemsPerPage;
 
+  // Show subscription prompt if user doesn't have active subscription
+  if (!hasActiveSubscription()) {
+    return <SubscriptionPrompt />;
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      
+      {/* Success Message */}
+      {successMessage && (
+        <Alert className="border-green-200 bg-green-50 mb-6">
+          <CheckCircle className="h-4 w-4 text-green-600" />
+          <AlertDescription className="text-green-700">
+            {successMessage}
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Filters and Controls */}
       <div className="bg-white rounded-lg shadow-sm border p-6 mb-8">

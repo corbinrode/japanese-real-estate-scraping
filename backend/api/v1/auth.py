@@ -72,9 +72,8 @@ async def register_user(user_data: UserCreate):
     
     if result.inserted_id:
         return {
-            "message": "User registered successfully. Please complete your subscription to access premium listings.",
-            "user_id": str(result.inserted_id),
-            "requires_subscription": True
+            "message": "Account created successfully! You can now log in.",
+            "user_id": str(result.inserted_id)
         }
     else:
         raise HTTPException(

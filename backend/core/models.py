@@ -60,6 +60,18 @@ class SubscriptionCreate(BaseModel):
     payment_provider: PaymentProvider = PaymentProvider.STRIPE
     payment_token: str
 
+class SubscriptionCreateWithUser(SubscriptionCreate):
+    """Subscription creation with user registration data"""
+    name: str
+    email: str
+    password: str
+
+class SubscriptionCreateForUser(BaseModel):
+    """Subscription creation for existing authenticated user"""
+    plan: SubscriptionPlan
+    payment_provider: PaymentProvider = PaymentProvider.STRIPE
+    payment_token: str
+
 class Subscription(BaseModel):
     id: str
     user_id: str

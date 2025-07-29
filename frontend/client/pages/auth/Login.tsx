@@ -41,11 +41,10 @@ export default function Login() {
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated) {
-      // Redirect to the page they were trying to access, or listings by default
-      const from = location.state?.from?.pathname || '/listings';
-      navigate(from, { replace: true });
+      // Always redirect to listings after login
+      navigate('/listings', { replace: true });
     }
-  }, [isAuthenticated, navigate, location.state]);
+  }, [isAuthenticated, navigate]);
 
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};

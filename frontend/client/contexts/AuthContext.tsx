@@ -37,6 +37,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       const token = localStorage.getItem('access_token');
       if (token) {
         try {
+          // Set the token in the API client before making requests
+          realEstateAPI.setToken(token);
           await refreshUser();
         } catch (error) {
           console.error("Failed to restore session:", error);

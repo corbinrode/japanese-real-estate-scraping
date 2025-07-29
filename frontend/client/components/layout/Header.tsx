@@ -34,21 +34,9 @@ export default function Header() {
   };
 
   const handleLogoClick = () => {
-    // Only navigate if user is authenticated and has valid subscription or is admin
+    // Navigate to listings if user is authenticated - listings page handles subscription check
     if (isAuthenticated && user) {
-      // Admin users can always access listings
-      if (user.role === 'admin') {
-        navigate('/listings');
-        return;
-      }
-      
-      const hasValidSubscription = subscription && 
-        (subscription.status === 'active' || subscription.status === 'cancelled') && 
-        new Date(subscription.ends_at) > new Date();
-      
-      if (hasValidSubscription) {
-        navigate('/listings');
-      }
+      navigate('/listings');
     }
   };
 
@@ -59,12 +47,7 @@ export default function Header() {
           {/* Logo and Title */}
           <div 
             className={`flex items-center space-x-2 ${
-              isAuthenticated && user && (
-                user.role === 'admin' || 
-                (subscription && 
-                (subscription.status === 'active' || subscription.status === 'cancelled') && 
-                new Date(subscription.ends_at) > new Date())
-              )
+              isAuthenticated && user
                 ? 'cursor-pointer hover:opacity-80 transition-opacity' 
                 : ''
             }`}
@@ -109,7 +92,7 @@ export default function Header() {
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link to="/subscription">
+                    <Link to="/subscription/manage">
                       <CreditCard className="mr-2 h-4 w-4" />
                       <span>Subscription</span>
                     </Link>

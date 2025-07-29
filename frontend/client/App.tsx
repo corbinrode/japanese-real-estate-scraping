@@ -13,7 +13,6 @@ import RootRedirect from "@/components/RootRedirect";
 import Listings from "./pages/Listings";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
-import SubscriptionRenewal from "./pages/SubscriptionRenewal";
 import SubscriptionManagementPage from "./pages/SubscriptionManagement";
 import AccountSettings from "./pages/AccountSettings";
 import NotFound from "./pages/NotFound";
@@ -31,29 +30,28 @@ const App = () => (
             {/* Auth routes - no layout wrapper */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-            <Route path="/subscription/renew" element={<SubscriptionRenewal />} />
 
             {/* Root route - redirects based on auth status */}
             <Route path="/" element={<RootRedirect />} />
 
             {/* Protected routes - with layout wrapper */}
             <Route 
-              path="/listings" 
-              element={
-                <Layout>
-                  <ProtectedRoute requireSubscription={true}>
-                    <Listings />
-                  </ProtectedRoute>
-                </Layout>
-              } 
-            />
-            
-            <Route 
-              path="/subscription" 
+              path="/subscription/manage" 
               element={
                 <ProtectedRoute>
                   <SubscriptionManagementPage />
                 </ProtectedRoute>
+              } 
+            />
+
+            <Route 
+              path="/listings" 
+              element={
+                <Layout>
+                  <ProtectedRoute>
+                    <Listings />
+                  </ProtectedRoute>
+                </Layout>
               } 
             />
 
