@@ -9,6 +9,82 @@ import { getPrefectureDisplay } from "./real-estate";
 // API base URL - adjust based on your environment
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
+// Authentication types
+export interface LoginCredentials {
+  username: string; // FastAPI OAuth2PasswordRequestForm uses 'username' field
+  password: string;
+}
+
+export interface RegisterData {
+  email: string;
+  name: string;
+  password: string;
+}
+
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Subscription {
+  id: string;
+  user_id: string;
+  plan: string;
+  status: string;
+  payment_provider: string;
+  stripe_subscription_id?: string;
+  starts_at: string;
+  ends_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LoginResponse {
+  access_token: string;
+  token_type: string;
+  user: User;
+  subscription?: Subscription;
+}
+
+export interface SubscriptionPlan {
+  name: string;
+  price: number;
+  features: string[];
+  duration_days: number;
+}
+
+export interface SubscriptionPlanResponse {
+  plan: SubscriptionPlan;
+}
+
+export interface SubscriptionCreate {
+  plan: 'premium';
+  payment_provider: 'stripe';
+  payment_token: string;
+  // User data included in subscription creation
+  name: string;
+  email: string;
+  password: string;
+}
+
+export interface PaymentResponse {
+  success: boolean;
+  subscription_id?: string;
+  message: string;
+  payment_url?: string;
+}
+
+export interface PaymentConfig {
+  stripe: {
+    publishable_key: string;
+  };
+}
+
 // Backend data structure interfaces
 export interface BackendListing {
   Prefecture: string;
@@ -60,27 +136,185 @@ export interface RealEstateListing {
 // API client functions
 export class RealEstateAPI {
   private baseUrl: string;
+  private token: string | null = null;
 
   constructor(baseUrl: string = API_BASE_URL) {
     this.baseUrl = baseUrl;
+    // Try to get token from localStorage
+    if (typeof window !== 'undefined') {
+      this.token = localStorage.getItem('access_token');
+    }
+  }
+
+  setToken(token: string | null) {
+    this.token = token;
+    if (typeof window !== 'undefined') {
+      if (token) {
+        localStorage.setItem('access_token', token);
+      } else {
+        localStorage.removeItem('access_token');
+      }
+    }
   }
 
   private async fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    // Add authorization header if token exists
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`;
+    }
+
     const response = await fetch(url, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       ...options,
     });
 
     if (!response.ok) {
-      throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      const errorText = await response.text();
+      let errorMessage = `API request failed: ${response.status} ${response.statusText}`;
+      
+      try {
+        const errorJson = JSON.parse(errorText);
+        if (errorJson.detail) {
+          errorMessage = errorJson.detail;
+        }
+      } catch {
+        // If can't parse as JSON, use the text
+        if (errorText) {
+          errorMessage = errorText;
+        }
+      }
+      
+      throw new Error(errorMessage);
     }
 
     return response.json();
   }
 
+  // Authentication methods - register method removed since accounts are created during subscription
+  async login(credentials: LoginCredentials): Promise<LoginResponse> {
+    // FastAPI OAuth2PasswordRequestForm expects form data, not JSON
+    const formData = new URLSearchParams();
+    formData.append('username', credentials.username);
+    formData.append('password', credentials.password);
+
+    const response = await fetch(`${this.baseUrl}/v1/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorMessage = `Login failed: ${response.status} ${response.statusText}`;
+      
+      try {
+        const errorJson = JSON.parse(errorText);
+        if (errorJson.detail) {
+          errorMessage = errorJson.detail;
+        }
+      } catch {
+        if (errorText) {
+          errorMessage = errorText;
+        }
+      }
+      
+      throw new Error(errorMessage);
+    }
+
+    const loginResponse = await response.json();
+    
+    // Set token for future requests
+    this.setToken(loginResponse.access_token);
+    
+    return loginResponse;
+  }
+
+  async logout(): Promise<void> {
+    try {
+      await this.fetchAPI<any>('/v1/auth/logout', {
+        method: 'POST',
+      });
+    } catch (error) {
+      // Even if logout fails on server, clear local token
+      console.warn('Logout request failed:', error);
+    } finally {
+      this.setToken(null);
+    }
+  }
+
+  async getCurrentUser(): Promise<User> {
+    return this.fetchAPI<User>('/v1/auth/me');
+  }
+
+  async updateUserName(name: string): Promise<{ message: string; name: string }> {
+    return this.fetchAPI<{ message: string; name: string }>('/v1/auth/update-name', {
+      method: 'PUT',
+      body: JSON.stringify({ name }),
+    });
+  }
+
+  async updateUserPassword(currentPassword: string, newPassword: string): Promise<{ message: string }> {
+    return this.fetchAPI<{ message: string }>('/v1/auth/update-password', {
+      method: 'PUT',
+      body: JSON.stringify({ 
+        current_password: currentPassword,
+        new_password: newPassword 
+      }),
+    });
+  }
+
+  async getSubscriptionPlan(): Promise<SubscriptionPlanResponse> {
+    return this.fetchAPI<SubscriptionPlanResponse>('/v1/auth/subscription-plan');
+  }
+
+  async getPaymentConfig(): Promise<PaymentConfig> {
+    return this.fetchAPI<PaymentConfig>('/v1/payments/config');
+  }
+
+  async checkEmail(email: string): Promise<{ exists: boolean; message: string }> {
+    return this.fetchAPI<{ exists: boolean; message: string }>('/v1/auth/check-email', {
+      method: 'POST',
+      body: JSON.stringify({ email })
+    });
+  }
+
+  // Payment methods - now creates both user and subscription
+  async createSubscription(subscriptionData: SubscriptionCreate): Promise<PaymentResponse> {
+    return this.fetchAPI<PaymentResponse>('/v1/payments/create-subscription', {
+      method: 'POST',
+      body: JSON.stringify(subscriptionData),
+    });
+  }
+
+  async getUserSubscription(): Promise<any> {
+    return this.fetchAPI<any>('/v1/payments/subscription');
+  }
+
+  async cancelSubscription(): Promise<any> {
+    return this.fetchAPI<any>('/v1/payments/cancel-subscription', {
+      method: 'POST',
+    });
+  }
+
+  async renewSubscription(renewalData: {
+    plan: 'premium';
+    payment_provider: 'stripe';
+    payment_token: string;
+  }): Promise<PaymentResponse> {
+    return this.fetchAPI<PaymentResponse>('/v1/payments/renew-subscription', {
+      method: 'POST',
+      body: JSON.stringify(renewalData),
+    });
+  }
+
+  // Existing listing methods
   async getListings(params: {
     prefecture?: string;
     layout?: string;

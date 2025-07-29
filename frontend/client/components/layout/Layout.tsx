@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { Header } from "./Header";
+import Header from "./Header";
 
 interface LayoutProps {
   children: ReactNode;
@@ -7,9 +7,9 @@ interface LayoutProps {
 
 export const Layout = ({ children }: LayoutProps) => {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+    <div className="min-h-screen bg-background">
       <Header />
-      <main>
+      <main className="flex-1">
         {children}
       </main>
     </div>

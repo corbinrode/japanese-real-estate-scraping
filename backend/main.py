@@ -1,11 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from api.v1 import listings
+from api.v1 import listings, auth, payments
 from core.config import settings
 
 
-app = FastAPI()
+app = FastAPI(title="Akiya Helper Listings API", version="1.0.0")
 
 # CORS settings
 environment = settings.ENVIRONMENT
@@ -25,3 +25,9 @@ app.mount("/images", StaticFiles(directory="images"), name="images")
 
 # Include routers with version prefix
 app.include_router(listings.router, prefix="/v1/listings", tags=["listings"])
+app.include_router(auth.router, prefix="/v1/auth", tags=["authentication"])
+app.include_router(payments.router, prefix="/v1/payments", tags=["payments"])
+
+@app.get("/")
+async def root():
+    return {"message": "Akiya Helper Listings API", "version": "1.0.0"}

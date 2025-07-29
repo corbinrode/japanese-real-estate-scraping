@@ -1,17 +1,14 @@
-import { createContext, useContext, useState, ReactNode } from "react";
-
-interface User {
-  id: string;
-  email: string;
-  name: string;
-}
+import { createContext, useContext, useState, ReactNode, useEffect } from "react";
+import { realEstateAPI, User, Subscription, LoginCredentials } from "../shared/api";
 
 interface AuthContextType {
   user: User | null;
+  subscription: Subscription | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  login: (credentials: LoginCredentials) => Promise<void>;
+  logout: () => Promise<void>;
   loading: boolean;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -30,25 +27,55 @@ interface AuthProviderProps {
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
 
-  const login = async (email: string, password: string) => {
+  // Check for existing session on mount
+  useEffect(() => {
+    const initAuth = async () => {
+      const token = localStorage.getItem('access_token');
+      if (token) {
+        try {
+          await refreshUser();
+        } catch (error) {
+          console.error("Failed to restore session:", error);
+          // Clear invalid token
+          localStorage.removeItem('access_token');
+          realEstateAPI.setToken(null);
+        }
+      }
+      setInitialLoading(false);
+    };
+
+    initAuth();
+  }, []);
+
+  const refreshUser = async () => {
+    try {
+      const userData = await realEstateAPI.getCurrentUser();
+      setUser(userData);
+
+      // Also fetch subscription info
+      try {
+        const subscriptionResponse = await realEstateAPI.getUserSubscription();
+        setSubscription(subscriptionResponse.subscription || null);
+      } catch (error) {
+        console.error("Failed to fetch subscription:", error);
+        setSubscription(null);
+      }
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  const login = async (credentials: LoginCredentials) => {
     setLoading(true);
     try {
-      // TODO: Implement actual login logic
-      // For now, this is just a placeholder
-      console.log("Login attempt:", { email, password });
+      const loginResponse = await realEstateAPI.login(credentials);
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Mock successful login
-      const mockUser: User = {
-        id: "1",
-        email,
-        name: "User Name"
-      };
-      setUser(mockUser);
+      setUser(loginResponse.user);
+      setSubscription(loginResponse.subscription || null);
     } catch (error) {
       console.error("Login failed:", error);
       throw error;
@@ -57,17 +84,27 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    // TODO: Clear any stored tokens, redirect, etc.
+  const logout = async () => {
+    setLoading(true);
+    try {
+      await realEstateAPI.logout();
+    } catch (error) {
+      console.error("Logout failed:", error);
+    } finally {
+      setUser(null);
+      setSubscription(null);
+      setLoading(false);
+    }
   };
 
   const value: AuthContextType = {
     user,
+    subscription,
     isAuthenticated: !!user,
     login,
     logout,
-    loading
+    loading: loading || initialLoading,
+    refreshUser
   };
 
   return (

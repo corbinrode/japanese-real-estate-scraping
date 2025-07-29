@@ -1,9 +1,11 @@
 import math
 import datetime
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
 from typing import Optional
-from core.database import db
+from core.database import listings_db as db
 from core.config import settings
+from core.models import User
+from core.auth import get_current_subscribed_user
 
 router = APIRouter()
 
@@ -137,9 +139,9 @@ def get_all_listings_filtered(
     }
 
 
-
 @router.get("/listings")
 def get_listings(
+    current_user: User = Depends(get_current_subscribed_user),  # Require authenticated user with subscription
     prefecture: Optional[str] = Query(None),
     layout: Optional[str] = Query(None),
     sale_price_min: Optional[int] = Query(None),
@@ -149,6 +151,7 @@ def get_listings(
     page: int = Query(1, ge=1),
     limit: int = Query(20, le=100),
 ):
+    """Get listings - requires active subscription"""
     results = get_all_listings_filtered(
         prefecture=prefecture,
         layout=layout,
@@ -163,7 +166,10 @@ def get_listings(
 
 
 @router.get("/unique-layouts")
-def get_unique_building_layouts():
+def get_unique_building_layouts(
+    current_user: User = Depends(get_current_subscribed_user)  # Require authenticated user with subscription
+):
+    """Get unique building layouts - requires active subscription"""
     unique_layouts = set()
 
     for coll_name in db.list_collection_names():

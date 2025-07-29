@@ -4,11 +4,13 @@ import urllib.parse
 
 
 class Settings(BaseSettings):
+    # Database Configuration (original format with username/password)
     DB_HOST: str
     DB_PORT: str
     DB_USER: str
     DB_PASSWORD: str
-    CRAWLER_DB: str
+    CRAWLER_DB: str  # For listings data
+    USER_DB: str     # For user and subscription data
     ENVIRONMENT: str
 
     @property
@@ -19,9 +21,18 @@ class Settings(BaseSettings):
         # Base connection string
         base_url = "mongodb://%s:%s@%s:%s" % (user, password, self.DB_HOST, self.DB_PORT)
         return base_url
-
+    
+    # JWT settings
+    SECRET_KEY: str = "your-secret-key-change-this-in-production"
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    
+    # Payment API keys
+    STRIPE_SECRET_KEY: str = ""
+    STRIPE_PUBLISHABLE_KEY: str = ""
+    STRIPE_WEBHOOK_SECRET: str = ""
+    
     class Config:
         env_file = ".env"
-
 
 settings = Settings()
