@@ -59,7 +59,7 @@ export default function Header() {
               className="w-8 h-8 object-contain" 
               onError={(e) => console.log('Image failed to load:', e.target.src)} 
             />
-            <h1 className="text-2xl font-bold text-slate-900">Akiya Helper Listings</h1>
+            <h1 className="text-2xl font-bold text-slate-900">Akiya Helper Homes</h1>
           </div>
 
           {/* User Menu or Auth Buttons */}

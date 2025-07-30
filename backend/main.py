@@ -5,7 +5,7 @@ from api.v1 import listings, auth, payments
 from core.config import settings
 
 
-app = FastAPI(title="Akiya Helper Listings API", version="1.0.0")
+app = FastAPI(title="Akiya Helper Homes API", version="1.0.0")
 
 # CORS settings
 environment = settings.ENVIRONMENT
@@ -37,4 +37,4 @@ app.include_router(payments.router, prefix="/v1/payments", tags=["payments"])
 
 @app.get("/")
 async def root():
-    return {"message": "Akiya Helper Listings API", "version": "1.0.0"}
+    return {"message": "Akiya Helper Homes API", "version": "1.0.0"}
