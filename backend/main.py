@@ -9,7 +9,14 @@ app = FastAPI(title="Akiya Helper Listings API", version="1.0.0")
 
 # CORS settings
 environment = settings.ENVIRONMENT
-allowOrigins = ["*"]
+
+if environment == "development":
+    allowOrigins = ["*"]
+else:
+    allowOrigins = [
+        "https://akiyahelper.homes",
+        "https://www.akiyahelper.homes"
+    ]
 
 
 app.add_middleware(
