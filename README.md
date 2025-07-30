@@ -41,6 +41,51 @@ This project consists of three main components:
    - Backend API: http://localhost:8000
    - API Documentation: http://localhost:8000/docs
 
+## 🌐 Production Environment
+
+The production environment is hosted on a server accessible via the domain **akiyahelper.homes**. The server runs Apache HTTP Server configured as a reverse proxy to route frontend and backend traffic appropriately, and it serves the site securely using a Let's Encrypt SSL certificate managed by DirectAdmin.
+
+### Architecture Overview
+
+**Frontend:**
+- Served by a Docker container running on `localhost:8080`
+- Apache proxies all requests except those starting with `/api/` to the frontend container
+
+**Backend API:**
+- A FastAPI application running in a Docker container on `localhost:8000`  
+- Apache proxies requests beginning with `/api/` to the backend container
+- The backend FastAPI routes include the `/api` prefix (e.g., `/api/v1/auth/login`)
+
+### Apache Proxy Configuration
+
+- Apache listens on ports 80 and 443
+- HTTP (port 80) requests are redirected to HTTPS (port 443)
+- The path `/.well-known/acme-challenge/` is served directly by Apache for Let's Encrypt certificate validation
+- SSL termination is handled by Apache using certificates stored at:
+  - `/usr/local/directadmin/data/users/admin/domains/akiyahelper.homes.cert.combined`
+  - `/usr/local/directadmin/data/users/admin/domains/akiyahelper.homes.key`
+
+**Example proxy rules:**
+```apache
+ProxyPass /api/ http://localhost:8000/api/
+ProxyPassReverse /api/ http://localhost:8000/api/
+ProxyPass / http://localhost:8080/
+ProxyPassReverse / http://localhost:8080/
+```
+
+### Backend Base URL
+
+The backend API is accessible at: **https://akiyahelper.homes/api**
+
+All API routes are prefixed with `/api` to match the Apache proxy configuration.
+
+### SSL Certificates and Renewal
+
+- SSL certificates are issued and managed automatically via DirectAdmin's ACME integration with Let's Encrypt
+- Certificates are stored in the user's DirectAdmin domain folder
+- Apache is configured to use these certificates for HTTPS connections
+- Auto-renewal is handled by DirectAdmin, ensuring continuous secure service
+
 ## 🔧 Backend (FastAPI)
 
 ### Overview
