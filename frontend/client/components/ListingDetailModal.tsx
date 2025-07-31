@@ -46,7 +46,7 @@ export default function ListingDetailModal({ listing, isOpen, onClose }: Listing
       <DialogContent className="max-w-5xl w-full h-[90vh] flex flex-col p-0">
         <DialogHeader className="flex-shrink-0 p-4 pb-2">
           <DialogTitle className="text-lg font-semibold text-gray-800">
-            📍 {listing.address ? `${listing.address}, ${listing.prefecture}` : listing.prefecture}
+            📍 {listing.address ? `${listing.address}` : listing.prefecture}
           </DialogTitle>
         </DialogHeader>
 
