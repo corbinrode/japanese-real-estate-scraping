@@ -47,8 +47,8 @@ headers = {
 }
 
 proxies = {
-    "http": f"http://{settings.ZYTE_API_KEY}:@proxy.zyte.com:8011",
-    "https": f"http://{settings.ZYTE_API_KEY}:@proxy.zyte.com:8011",
+    "http": f"http://{settings.ZYTE_API_KEY}:@api.zyte.com:8011",
+    "https": f"http://{settings.ZYTE_API_KEY}:@api.zyte.com:8011",
 }
 
 # --- REQUEST FUNCTION WITH JITTER AND BACKOFF ---
