@@ -14,6 +14,7 @@ import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 from uuid import UUID
+from base64 import b64decode
 
 # Set up logger
 logger = setup_logger('nifty_updates', 'nifty_updates')
@@ -46,33 +47,6 @@ headers = {
     "User-Agent": get_random_user_agent()
 }
 
-proxies = {
-    "http": f"http://{settings.ZYTE_API_KEY}:@api.zyte.com:8011",
-    "https": f"http://{settings.ZYTE_API_KEY}:@api.zyte.com:8011",
-}
-
-# --- REQUEST FUNCTION WITH JITTER AND BACKOFF ---
-def fetch_with_backoff(url):
-    backoff = INITIAL_BACKOFF
-    
-    for attempt in range(MAX_RETRIES):
-        try:
-            response = requests.get(url, timeout=10, headers=headers, proxies=proxies)
-            if response.status_code == 200:
-                return response.text
-            else:
-                logger.warning(f"Non-200 status: {response.status_code}")
-        except requests.RequestException as e:
-            logger.error(f"Request failed: {e}")
-
-        # Exponential backoff with jitter
-        jitter = random.uniform(0, backoff)
-        logger.info(f"Retrying in {jitter:.2f} seconds...")
-        time.sleep(jitter)
-        backoff *= 2
-
-    logger.error("Max retries exceeded.")
-    return None
 
 
 # --- FUNCTION TO SCRAPE ADDITIONAL IMAGES AND CONTACT NUMBER ---
@@ -93,7 +67,16 @@ def scrape_additional_data(document):
     time.sleep(random.uniform(1, 3))
     
     # Fetch the listing page
-    html = fetch_with_backoff(link)
+    api_response = requests.post(
+        "https://api.zyte.com/v1/extract",
+        auth=(settings.ZYTE_API_KEY, ""),
+        json={
+            "url": link,
+            "httpResponseBody": True,
+        }
+    )
+    html = b64decode(api_response.json()["httpResponseBody"])
+
     if not html:
         logger.error(f"Problem fetching listing link: {link}")
         return False
