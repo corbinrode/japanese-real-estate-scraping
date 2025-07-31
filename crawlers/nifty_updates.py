@@ -227,7 +227,7 @@ def main():
     }
     
     # Get all documents at once
-    documents = list(collection.find(query))
+    documents = list(collection.find(query).sort("createdAt", -1))
     document_count = len(documents)
     
     logger.info(f"Found {document_count} documents that need updates")
