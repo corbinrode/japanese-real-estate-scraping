@@ -12,6 +12,7 @@ from config import settings
 import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
+from uuid import UUID
 
 # Set up logger
 logger = setup_logger('hatomark_updates', 'hatomark_updates')
@@ -103,6 +104,12 @@ def scrape_additional_data(document):
     # Get thread-local database connection
     thread_collection = get_db_connection()
     
+    # Convert binary UUID to proper string format
+    if isinstance(property_id, bson.Binary):
+        property_id_str = str(UUID(bytes=property_id))
+    else:
+        property_id_str = str(property_id)
+    
     # Scrape contact number if missing
     if not existing_contact:
         contact_number = None
@@ -147,7 +154,7 @@ def scrape_additional_data(document):
             new_image_paths = []
             for img_url in additional_image_urls:
                 file_name = "{}.jpg".format(uuid4())
-                folder = os.path.join("images", "hatomark", str(property_id))
+                folder = os.path.join("images", "hatomark", property_id_str)
                 image_path = save_image(img_url, file_name, folder)
                 if image_path:
                     new_image_paths.append(image_path)

@@ -12,6 +12,7 @@ from config import settings
 import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
+from uuid import UUID
 
 # Set up logger
 logger = setup_logger('sumai_updates', 'sumai_updates')
@@ -114,6 +115,12 @@ def scrape_additional_images(document):
     images = image_section.find_all("div")
     new_image_paths = []
     
+    # Convert binary UUID to proper string format
+    if isinstance(property_id, bson.Binary):
+        property_id_str = str(UUID(bytes=property_id))
+    else:
+        property_id_str = str(property_id)
+    
     # Skip the first image (index 0) and scrape the rest
     for i, image in enumerate(images[1:], 1):  # Start from index 1
         image_link = image.find("a")
@@ -121,7 +128,7 @@ def scrape_additional_images(document):
             image_link = image_link.get("href")
             if image_link:
                 file_name = "{}.jpg".format(uuid4())
-                folder = os.path.join("images", "sumai", str(property_id))
+                folder = os.path.join("images", "sumai", property_id_str)
                 image_path = save_image(image_link, file_name, folder)
                 if image_path:
                     new_image_paths.append(image_path)
