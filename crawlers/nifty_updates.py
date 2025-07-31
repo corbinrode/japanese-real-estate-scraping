@@ -88,7 +88,15 @@ def scrape_additional_data(document):
     time.sleep(random.uniform(1, 3))
     
     # Fetch the listing page
-    html = fetch_with_backoff(link)
+    api_response = requests.post(
+        "https://api.zyte.com/v1/extract",
+        auth=(settings.ZYTE_API_KEY, ""),
+        json={
+            "url": link,
+            "browserHtml": True,
+        }
+    )
+    html = api_response.json()["browserHtml"]
     if not html:
         logger.error(f"Problem fetching listing link: {link}")
         return False
