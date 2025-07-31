@@ -46,13 +46,18 @@ headers = {
     "User-Agent": get_random_user_agent()
 }
 
+proxies = {
+    "http": f"http://{settings.ZYTE_API_KEY}:@proxy.zyte.com:8011",
+    "https": f"http://{settings.ZYTE_API_KEY}:@proxy.zyte.com:8011",
+}
+
 # --- REQUEST FUNCTION WITH JITTER AND BACKOFF ---
 def fetch_with_backoff(url):
     backoff = INITIAL_BACKOFF
     
     for attempt in range(MAX_RETRIES):
         try:
-            response = requests.get(url, timeout=10, headers=headers)
+            response = requests.get(url, timeout=10, headers=headers, proxies=proxies)
             if response.status_code == 200:
                 return response.text
             else:
