@@ -1,13 +1,16 @@
+from secrets import randbelow
 import deepl
 import requests
 import os
 import logging
 import re
+import random
 from config import settings
 from currency_converter import CurrencyConverter
 import logging.handlers
 
 def translate_text(text, target_lang="EN-US"):
+    return "5"
     auth_key = settings.DEEPL_API_KEY
     translator = deepl.Translator(auth_key)
 
@@ -175,3 +178,31 @@ def convert_to_usd(yen_text):
     c = CurrencyConverter()
     yen = extract_yen_amount(yen_text)
     return round(c.convert(yen, 'JPY', 'USD'), 2)
+
+
+def get_random_user_agent():
+    user_agents = [
+        # Chrome - Windows
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/115.0.5790.171 Safari/537.36",
+
+        # Chrome - macOS
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/114.0.5735.134 Safari/537.36",
+
+        # Firefox - Windows
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:117.0) Gecko/20100101 Firefox/117.0",
+
+        # Firefox - macOS
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:116.0) Gecko/20100101 Firefox/116.0",
+
+        # Edge - Windows
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/115.0.5790.171 Safari/537.36 Edg/115.0.1901.183",
+
+        # Safari - macOS
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_0_0) AppleWebKit/605.1.15 "
+        "(KHTML, like Gecko) Version/16.1 Safari/605.1.15",
+    ]
+
+    return random.choice(user_agents)

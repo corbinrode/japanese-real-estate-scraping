@@ -7,8 +7,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { CheckCircle, Lock, CreditCard } from "lucide-react";
+import { CheckCircle, Lock, CreditCard, Phone, ExternalLink } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import ListingDetailModal from "@/components/ListingDetailModal";
 
 type SortOption = "price-asc" | "price-desc" | "date-new" | "date-old";
 
@@ -37,9 +38,10 @@ export default function Listings() {
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   
-  // Unique layouts state
-  const [uniqueLayouts, setUniqueLayouts] = useState<string[]>([]);
-  const [layoutsLoading, setLayoutsLoading] = useState(true);
+  // Modal state
+  const [selectedListing, setSelectedListing] = useState<RealEstateListing | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  
 
   // Handle success message from navigation
   useEffect(() => {
@@ -128,36 +130,6 @@ export default function Listings() {
     </div>
   );
 
-  // Fetch unique layouts from API
-  const fetchUniqueLayouts = async () => {
-    // Don't fetch if user doesn't have active subscription
-    if (!hasActiveSubscription()) {
-      setLayoutsLoading(false);
-      return;
-    }
-
-    try {
-      setLayoutsLoading(true);
-      const response = await realEstateAPI.getUniqueLayouts();
-      setUniqueLayouts(response.unique_layouts);
-    } catch (err) {
-      console.error('Error fetching unique layouts:', err);
-      // Fallback to empty array if API fails
-      setUniqueLayouts([]);
-    } finally {
-      setLayoutsLoading(false);
-    }
-  };
-
-  // Fetch unique layouts on component mount and when subscription status changes
-  useEffect(() => {
-    if (hasActiveSubscription()) {
-      fetchUniqueLayouts();
-    } else {
-      setLayoutsLoading(false);
-      setUniqueLayouts([]);
-    }
-  }, [user, subscription]);
 
   // Fetch listings from API
   const fetchListings = async () => {
@@ -247,6 +219,16 @@ export default function Listings() {
     setSearchTrigger(prev => prev + 1);
   };
 
+  const handleListingClick = (listing: RealEstateListing) => {
+    setSelectedListing(listing);
+    setIsModalOpen(true);
+  };
+
+  const handleModalClose = () => {
+    setIsModalOpen(false);
+    setSelectedListing(null);
+  };
+
   if (loading && listings.length === 0) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -297,7 +279,7 @@ export default function Listings() {
 
       {/* Filters and Controls */}
       <div className="bg-white rounded-lg shadow-sm border p-6 mb-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-4">
           {/* Prefecture Filter */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Prefecture</label>
@@ -354,45 +336,6 @@ export default function Listings() {
                 setFilters(prev => ({ ...prev, priceMax: e.target.value }));
               }}
             />
-          </div>
-
-          {/* Floor Plan Filter */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Floor Plan</label>
-            <div className="flex gap-2">
-              <Select value={filters.floorPlan} onValueChange={(value) => {
-                setFilters(prev => ({ ...prev, floorPlan: value }));
-              }}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Any layout" />
-                </SelectTrigger>
-                <SelectContent>
-                  {layoutsLoading ? (
-                    <SelectItem value="" disabled>Loading layouts...</SelectItem>
-                  ) : uniqueLayouts.length === 0 ? (
-                    <SelectItem value="" disabled>No layouts found</SelectItem>
-                  ) : (
-                    uniqueLayouts.map(plan => (
-                      <SelectItem key={plan} value={plan}>{plan}</SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-              {filters.floorPlan && (
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => {
-                    setFilters(prev => ({ ...prev, floorPlan: "" }));
-                    setCurrentPage(1);
-                    setSearchTrigger(prev => prev + 1);
-                  }}
-                  className="px-2"
-                >
-                  ✕
-                </Button>
-              )}
-            </div>
           </div>
 
           {/* Sort By */}
@@ -461,13 +404,30 @@ export default function Listings() {
       {!loading && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
           {listings.map((listing) => (
-            <Card key={listing.id} className="group hover:shadow-lg transition-shadow duration-200 overflow-hidden">
+            <Card 
+              key={listing.id} 
+              className="group hover:shadow-lg transition-shadow duration-200 overflow-hidden cursor-pointer"
+              onClick={() => handleListingClick(listing)}
+            >
               <div className="relative">
                 <img 
                   src={listing.imageUrl} 
                   alt={listing.title}
                   className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-200"
                 />
+                <div className="absolute bottom-3 left-3 flex gap-2">
+                  {listing.images.length > 1 && (
+                    <div className="bg-black/70 text-white px-2 py-1 rounded text-xs">
+                      {listing.images.length} photos
+                    </div>
+                  )}
+                  {listing.contactNumber && (
+                    <div className="bg-green-600/90 text-white px-2 py-1 rounded text-xs flex items-center">
+                      <Phone className="w-3 h-3 mr-1" />
+                      Contact
+                    </div>
+                  )}
+                </div>
                 {listing.floorPlan && (
                   <div className="absolute top-3 left-3 bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded-full text-xs font-semibold">
                     {listing.floorPlan}
@@ -535,6 +495,36 @@ export default function Listings() {
                     <div className="flex justify-between">
                       <span className="text-slate-500">Location:</span>
                       <span className="font-medium">{listing.address}</span>
+                    </div>
+                  )}
+
+                  {/* Contact Information */}
+                  {listing.contactNumber && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Contact:</span>
+                      <a 
+                        href={`tel:${listing.contactNumber}`}
+                        className="font-medium text-blue-600 hover:text-blue-800"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {listing.contactNumber}
+                      </a>
+                    </div>
+                  )}
+
+                  {listing.referenceUrl && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Reference:</span>
+                      <a 
+                        href={listing.referenceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-medium text-blue-600 hover:text-blue-800 flex items-center"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <ExternalLink className="w-3 h-3 mr-1" />
+                        URL
+                      </a>
                     </div>
                   )}
                   
@@ -646,6 +636,13 @@ export default function Listings() {
           </div>
         </div>
       )}
+
+      {/* Listing Detail Modal */}
+      <ListingDetailModal
+        listing={selectedListing}
+        isOpen={isModalOpen}
+        onClose={handleModalClose}
+      />
     </div>
   );
 }

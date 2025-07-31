@@ -79,7 +79,9 @@ def get_all_listings_filtered(
             "Property Location": 1,
             "Transportation": 1,
             "createdAt": 1,
-            "images": 1
+            "images": 1,
+            "Contact Number": 1,
+            "Reference URL": 1
         }}
     ]
     
@@ -104,7 +106,9 @@ def get_all_listings_filtered(
                         "Property Location": 1,
                         "Transportation": 1,
                         "createdAt": 1,
-                        "images": 1
+                        "images": 1,
+                        "Contact Number": 1,
+                        "Reference URL": 1
                     }}
                 ]
             }
@@ -163,20 +167,3 @@ def get_listings(
         limit=limit
     )
     return results
-
-
-@router.get("/unique-layouts")
-def get_unique_building_layouts(
-    current_user: User = Depends(get_current_subscribed_user)  # Require authenticated user with subscription
-):
-    """Get unique building layouts - requires active subscription"""
-    unique_layouts = set()
-
-    for coll_name in db.list_collection_names():
-        collection = db[coll_name]
-        # Only get layouts from documents where "Sale Price" exists and is a number
-        query = {"Sale Price": {"$exists": True, "$type": "number"}}
-        layouts = collection.distinct("Building - Layout", query)
-        unique_layouts.update(filter(None, layouts))  # Remove None values if any
-
-    return {"unique_layouts": sorted(unique_layouts)}

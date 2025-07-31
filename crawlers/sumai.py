@@ -17,7 +17,7 @@ logger = setup_logger('sumai', 'sumai')
 
 BASE_URL = "https://akiya.sumai.biz/category/%E5%A3%B2%E8%B2%B7%E4%BE%A1%E6%A0%BC%E5%B8%AF/page/{}"
 MAX_RETRIES = 5
-INITIAL_BACKOFF = 0.5  # in seconds
+INITIAL_BACKOFF = 30  # in seconds
 
 # DB config
 user = urllib.parse.quote_plus(settings.DB_USER)
@@ -148,7 +148,6 @@ def scrape_page(page_num):
                 folder = os.path.join("images", "sumai", str(property_id))
                 image_path = save_image(image_link, file_name, folder)
                 image_paths.append(image_path)
-                break # Just get one image for now
         
         listing_data["images"] = image_paths
 

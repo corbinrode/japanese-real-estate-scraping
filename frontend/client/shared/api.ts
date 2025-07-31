@@ -106,6 +106,8 @@ export interface BackendListing {
   Transportation?: string;
   createdAt: string;
   images?: string[];
+  "Contact Number"?: string;
+  "Reference URL"?: string;
 }
 
 export interface BackendListingsResponse {
@@ -129,7 +131,8 @@ export interface RealEstateListing {
   area?: string; // Changed to string since backend includes m²
   landArea?: string; // Changed to string since backend includes m²
   address?: string;
-  imageUrl: string;
+  imageUrl: string; // primary image for card display
+  images: string[]; // all available images for the listing
   yearBuilt?: string; // Changed to string since backend returns descriptive dates
   listingDate: string;
   description: string;
@@ -137,6 +140,8 @@ export interface RealEstateListing {
   propertyType?: string;
   transportation?: string;
   buildingStructure?: string;
+  contactNumber?: string;
+  referenceUrl?: string;
 }
 
 // API client functions
@@ -381,8 +386,18 @@ export class RealEstateAPI {
 
     // Use the first image from the images array if available, otherwise use a default placeholder
     let imageUrl: string;
+    let images: string[] = [];
+    
     if (backendListing.images && backendListing.images.length > 0 && backendListing.images[0]) {
-      // Use the first image from the array - remove the "images/" prefix since static server is mounted at /images
+      // Process all images from the backend for the images array
+      images = backendListing.images
+        .filter(imagePath => imagePath && typeof imagePath === 'string')
+        .map(imagePath => {
+          const cleanPath = imagePath.replace(/^images\//, ''); // Remove "images/" prefix if present
+          return `${API_BASE_URL}/images/${cleanPath}`;
+        });
+      
+      // Use the first image as the primary imageUrl (same logic as before)
       const imagePath = backendListing.images[0];
       if (imagePath && typeof imagePath === 'string') {
         const cleanPath = imagePath.replace(/^images\//, ''); // Remove "images/" prefix if present
@@ -390,10 +405,12 @@ export class RealEstateAPI {
       } else {
         // Use a simple placeholder if image path is invalid
         imageUrl = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300' viewBox='0 0 400 300'%3E%3Crect width='400' height='300' fill='%23f3f4f6'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%239ca3af' font-family='Arial' font-size='16'%3ENo Image Available%3C/text%3E%3C/svg%3E";
+        images = [imageUrl]; // Use placeholder for images array too
       }
     } else {
       // Use a simple placeholder if no images are available
       imageUrl = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300' viewBox='0 0 400 300'%3E%3Crect width='400' height='300' fill='%23f3f4f6'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%239ca3af' font-family='Arial' font-size='16'%3ENo Image Available%3C/text%3E%3C/svg%3E";
+      images = [imageUrl]; // Use placeholder for images array too
     }
 
     // Parse area values that already include "m²" - extract just the number
@@ -413,6 +430,7 @@ export class RealEstateAPI {
       landArea: backendListing["Land - Area"]?.toString(),
       address: backendListing["Property Location"],
       imageUrl,
+      images,
       yearBuilt: backendListing["Building - Construction Date"] ? 
         backendListing["Building - Construction Date"] : undefined,
       listingDate: backendListing.createdAt,
@@ -420,7 +438,9 @@ export class RealEstateAPI {
       features: ["Modern amenities", "Great location", "Well maintained", "Good value"],
       propertyType: backendListing["Property Type"],
       transportation: backendListing.Transportation,
-      buildingStructure: backendListing["Building - Structure"]
+      buildingStructure: backendListing["Building - Structure"],
+      contactNumber: backendListing["Contact Number"],
+      referenceUrl: backendListing["Reference URL"]
     };
   }
 }

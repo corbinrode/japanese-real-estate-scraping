@@ -1,3 +1,4 @@
+import re
 import time
 import random
 import requests
@@ -7,7 +8,7 @@ import os
 import bson
 from bs4 import BeautifulSoup
 from uuid import uuid4
-from helpers import translate_text, save_image, get_property_type, get_area_label, setup_logger, convert_to_usd
+from helpers import translate_text, save_image, get_property_type, get_area_label, setup_logger, convert_to_usd, get_random_user_agent
 from config import settings
 import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -15,7 +16,7 @@ import threading
 
 BASE_URL = "https://myhome.nifty.com/shinchiku-ikkodate/{}/search/{}/?subtype=bnh,buh&b2=30000000&pnum=40&sort=regDate-desc"
 MAX_RETRIES = 5
-INITIAL_BACKOFF = 0.5  # in seconds
+INITIAL_BACKOFF = 30  # in seconds
 MAX_WORKERS = 4
 
 # Thread-local storage for database connections
@@ -38,17 +39,17 @@ client = pymongo.MongoClient("mongodb://%s:%s@%s:%s" % (user, password, settings
 db = client.crawler_data
 collection = db.nifty_collection
 
-headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-}
-
 # Set up logger
 logger = setup_logger('nifty', 'nifty')
 
+headers = {
+    "User-Agent": get_random_user_agent()
+}
 
 # --- REQUEST FUNCTION WITH JITTER AND BACKOFF ---
 def fetch_with_backoff(url):
     backoff = INITIAL_BACKOFF
+    
     for attempt in range(MAX_RETRIES):
         try:
             response = requests.get(url, timeout=10, headers=headers)
@@ -149,26 +150,65 @@ def scrape_page(prefecture, page_num):
 
             listing_data[field] = value
 
+        # Scrape the actual listing for the contact number and images
+        html2 = fetch_with_backoff(link)
+        if not html2:
+            logger.error("Problem fetching listing link: " + link)
+            continue
+
+        soup2 = BeautifulSoup(html2, "html.parser")
+
+        contact_number = None
+        listing_content = soup2.find('main')
+        if "nifty" in link:
+
+            # Get the contact number
+            agent_info = listing_content.find("div", id="inquiryArea")
+            if agent_info:
+                # Find the phone number dt
+                dt = agent_info.find('dt', string='電話番号')
+
+                # Get the next <dd> sibling if it exists
+                contact_number = dt.find_next_sibling('dd').text.strip() if dt else None
+        elif "pitat" in link:
+
+            # Get the contact number
+            contact_div = listing_content.find('div', class_='detail-top-info__tel')
+            main_div = contact_div.find('div', class_='main')
+            contact_number = main_div.get_text(strip=True) if main_div else None   
+        
 
         listing_data["Sale Price"] = convert_to_usd(price)
         listing_data["Sale Price Yen"] = price
         listing_data["Property Type"] = property_type
         listing_data["Property Location"] = location
         listing_data["Transportation"] = transportation
+        listing_data["Contact Number"] = contact_number
         listing_data["Prefecture"] = prefecture
         listing_data["createdAt"] = datetime.datetime.now(datetime.timezone.utc)
 
-        # Get the img
+        # Get the images
+        print(link)
         image_paths = []
-        image_link = listing.find("img")
-        if image_link:
-            image_link = image_link.get("src")
-            file_name = "{}.jpg".format(uuid4())
-            folder = os.path.join("images", "nifty", str(property_id))
-            image_path = save_image(image_link, file_name, folder)
-            image_paths.append(image_path)
+        if "nifty" in link:
+            main_div = soup2.find('div', id='summary')
+            thumbnails = main_div.find_all('img', class_='thumbnail')
 
-            
+            # Deduplicate while preserving order
+            seen = set()
+            img_urls = []
+            for img in thumbnails:
+                src = img['src']
+                if src not in seen:
+                    seen.add(src)
+                    img_urls.append(src)
+
+            for img in img_urls:
+                file_name = "{}.jpg".format(uuid4())
+                folder = os.path.join("images", "nifty", str(property_id))
+                image_path = save_image(img, file_name, folder)
+                image_paths.append(image_path)
+
         listing_data["images"] = image_paths
 
         collection.insert_one(listing_data)
@@ -216,7 +256,7 @@ def main():
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         # Submit all prefectures for processing
         future_to_prefecture = {executor.submit(process_prefecture, prefecture): prefecture 
-                              for prefecture in prefectures}
+                            for prefecture in prefectures}
         
         # Process completed tasks as they finish
         completed_prefectures = []

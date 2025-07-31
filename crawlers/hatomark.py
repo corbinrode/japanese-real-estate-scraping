@@ -16,7 +16,7 @@ import threading
 
 BASE_URL = "https://www.hatomarksite.com/search/zentaku/buy/house/area/{}/list?price_b_from=&price_b_to=30000000&key_word=&land_area_all_from=&land_area_all_to=&land_area_unit=UNIT30&bld_area_from=&bld_area_to=&bld_area_unit=UNIT30&eki_walk=&expected_return_from=&expected_return_to=&limit=20&sort1=ASRT33&page={}"
 MAX_RETRIES = 5
-INITIAL_BACKOFF = 0.5  # in seconds
+INITIAL_BACKOFF = 30 # in seconds
 MAX_WORKERS = 4
 
 # Thread-local storage for database connections
@@ -170,6 +170,29 @@ def scrape_page(num, prefecture, page_num):
             floor_plan = info_divs[5].find("p").get_text(strip=True)
             floor_plan = translate_text(floor_plan)
 
+        # Scrape the actual listing for the contact number and images
+        html2 = fetch_with_backoff(link)
+        if not html2:
+            logger.error("Problem fetching listing link: " + link)
+            continue
+
+        soup2 = BeautifulSoup(html2, "html.parser")
+
+        # Find the main content on the page
+        listing_content = soup2.find('main')
+
+        # Get the contact number
+        contact_number = None
+        agent_info = listing_content.find("div", class_="info-agent")
+        for div in agent_info.find_all('div', class_='col d-flex align-items-center'):
+            label = div.find('p', class_='room-detail-title')
+            if label and 'TEL' in label.get_text(strip=True):
+                # Get the next <p> tag which contains the phone number
+                phone_tag = label.find_next_sibling('p')
+                if phone_tag:
+                    contact_number = phone_tag.get_text(strip=True)
+            
+
         listing_data["Sale Price"] = convert_to_usd(price)
         listing_data["Sale Price Yen"] = price
         listing_data["Property Type"] = property_type
@@ -180,20 +203,36 @@ def scrape_page(num, prefecture, page_num):
         listing_data["Building - Area"] = building_area
         listing_data["Building - Structure"] = floors
         listing_data["Building - Layout"] = floor_plan
+        listing_data["Contact Number"] = contact_number
         listing_data["Prefecture"] = prefecture
         listing_data["createdAt"] = datetime.datetime.now(datetime.timezone.utc)
 
-        # Get the img
+        # Get the images
+        images = []
+        for div in soup2.find_all('div', class_='slick-img'):
+            data_index = div.get('data-index')
+            img_tag = div.find('img')
+            if data_index and img_tag:
+                src = img_tag['src']
+                images.append((int(data_index), src))
+
+        # Remove duplicates (optional, based on data-index + src)
+        unique_images = list(dict.fromkeys(images))  # preserves order
+
+        # Sort by data-index
+        sorted_images = sorted(unique_images, key=lambda x: x[0])
+
+        # Extract only the image URLs
+        image_urls = [url for _, url in sorted_images]
+
         image_paths = []
-        image_link = listing.find("img")
-        if image_link:
-            image_link = image_link.get("src")
+        for img in image_urls:
+            image_link = img
             file_name = "{}.jpg".format(uuid4())
             folder = os.path.join("images", "hatomark", str(property_id))
             image_path = save_image(image_link, file_name, folder)
             image_paths.append(image_path)
-
-            
+   
         listing_data["images"] = image_paths
 
         collection.insert_one(listing_data)
