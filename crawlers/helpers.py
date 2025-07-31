@@ -10,7 +10,6 @@ from currency_converter import CurrencyConverter
 import logging.handlers
 
 def translate_text(text, target_lang="EN-US"):
-    return "5"
     auth_key = settings.DEEPL_API_KEY
     translator = deepl.Translator(auth_key)
 
