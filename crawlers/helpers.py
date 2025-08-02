@@ -5,9 +5,16 @@ import os
 import logging
 import re
 import random
+import time
 from config import settings
 from currency_converter import CurrencyConverter
 import logging.handlers
+from base64 import b64decode
+
+MAX_RETRIES = 5
+INITIAL_BACKOFF = 5  # in seconds
+REQUEST_TIMEOUT = 10
+
 
 def translate_text(text, target_lang="EN-US"):
     auth_key = settings.DEEPL_API_KEY
@@ -205,3 +212,76 @@ def get_random_user_agent():
     ]
 
     return random.choice(user_agents)
+
+
+def fetch_with_backoff(url, logger, follow_redirect=False):
+    headers = {
+        "User-Agent": get_random_user_agent()
+    }
+
+    # first try a regular request
+    for attempt in range(MAX_RETRIES):
+        try:
+            response = requests.get(url, timeout=REQUEST_TIMEOUT, headers=headers)
+            if response.status_code == 200:
+                return response.status_code, response.text
+            else:
+                logger.warning(f"Non-200 status: {response.status_code}")
+        except requests.RequestException as e:
+            logger.error(f"Request failed: {e}")
+        
+        # Exponential backoff with jitter
+        jitter = random.uniform(0, backoff)
+        logger.info(f"Retrying in {jitter:.2f} seconds...")
+        time.sleep(jitter)
+        backoff *= 2
+
+    # if that fails, use zyte api
+    api_response = requests.post(
+        "https://api.zyte.com/v1/extract",
+        auth=(settings.ZYTE_API_KEY, ""),
+        json={
+            "url": url,
+            "httpResponseBody": True,
+            "followRedirect": follow_redirect
+        }
+    )
+    status_code = api_response.json()["statusCode"]
+    html = b64decode(api_response.json()["httpResponseBody"])
+    return status_code, html
+
+
+def check_delete_link(url, logger, follow_redirect=False):
+    headers = {
+        "User-Agent": get_random_user_agent()
+    }
+
+    # first try a regular request
+    try:
+        response = requests.get(url, timeout=REQUEST_TIMEOUT, headers=headers)
+        if response.status_code in [404, 410, 301]:
+            return True
+        elif response.status_code == 200:
+            return False
+    except requests.RequestException as e:
+        logger.error(f"Request failed: {e}")
+
+    # if that fails, use zyte api
+    try:
+        api_response = requests.post(
+            "https://api.zyte.com/v1/extract",
+            auth=(settings.ZYTE_API_KEY, ""),
+            json={
+                "url": url,
+                "httpResponseBody": True,
+                "followRedirect": follow_redirect
+            }
+        )
+        status_code = api_response.json()["statusCode"]
+        if status_code in [404, 410, 301]:
+            return True
+        else:
+            return False
+    except requests.RequestException as e:
+        logger.error(f"Request failed: {e}")
+        return False

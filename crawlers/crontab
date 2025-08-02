@@ -1,4 +1,4 @@
-0 0 * * * cd /home/admin/japanese-real-estate-scraping/crawlers && /home/admin/japanese-real-estate-scraping/crawlers/venv/bin/python cleanup.py
+0 0 */3 * * cd /home/admin/japanese-real-estate-scraping/crawlers && /home/admin/japanese-real-estate-scraping/crawlers/venv/bin/python cleanup.py
 0 */4 * * * cd /home/admin/japanese-real-estate-scraping/crawlers && /home/admin/japanese-real-estate-scraping/crawlers/venv/bin/python sumai.py
 0 */4 * * * cd /home/admin/japanese-real-estate-scraping/crawlers && /home/admin/japanese-real-estate-scraping/crawlers/venv/bin/python hatomark.py
 0 */4 * * * cd /home/admin/japanese-real-estate-scraping/crawlers && /home/admin/japanese-real-estate-scraping/crawlers/venv/bin/python nifty.py

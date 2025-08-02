@@ -3,7 +3,7 @@ import requests
 import pymongo
 import urllib.parse
 from config import settings
-from helpers import setup_logger
+from helpers import setup_logger, check_delete_link
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # set up logger
@@ -16,7 +16,6 @@ client = pymongo.MongoClient(f"mongodb://{user}:{password}@{settings.DB_HOST}:{s
 db = client.crawler_data
 
 # Settings
-REQUEST_TIMEOUT = 10  # seconds
 BASE_IMAGE_PATH = "/home/admin/japanese-real-estate-scraping/crawlers"
 MAX_WORKERS = 20  # Tune this based on your system and network capacity
 
@@ -33,9 +32,8 @@ def process_document(collection_name, doc):
         return
 
     try:
-        response = requests.get(link, timeout=REQUEST_TIMEOUT, headers=headers)
-        if response.status_code in [404, 410]:
-            logger.info(f"Deleting document with link {link} (status {response.status_code})")
+        if check_delete_link(link, logger):
+            logger.info(f"Deleting document with link {link}")
 
             for relative_path in images:
                 abs_path = os.path.join(BASE_IMAGE_PATH, relative_path)

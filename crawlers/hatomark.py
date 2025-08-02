@@ -1,22 +1,18 @@
 from math import e
 import time
-import random
-import requests
 import pymongo
 import urllib.parse
 import os
 import bson
 from bs4 import BeautifulSoup
 from uuid import uuid4
-from helpers import translate_text, save_image, get_property_type, get_area_label, setup_logger, convert_to_usd
+from helpers import translate_text, save_image, setup_logger, convert_to_usd, fetch_with_backoff
 from config import settings
 import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 
 BASE_URL = "https://www.hatomarksite.com/search/zentaku/buy/house/area/{}/list?price_b_from=&price_b_to=30000000&key_word=&land_area_all_from=&land_area_all_to=&land_area_unit=UNIT30&bld_area_from=&bld_area_to=&bld_area_unit=UNIT30&eki_walk=&expected_return_from=&expected_return_to=&limit=20&sort1=ASRT33&page={}"
-MAX_RETRIES = 5
-INITIAL_BACKOFF = 30 # in seconds
 MAX_WORKERS = 4
 
 # Thread-local storage for database connections
@@ -39,42 +35,14 @@ client = pymongo.MongoClient("mongodb://%s:%s@%s:%s" % (user, password, settings
 db = client.crawler_data
 collection = db.hatomark_collection
 
-headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-}
-
 # Set up logger
 logger = setup_logger('hatomark', 'hatomark')
-
-
-# --- REQUEST FUNCTION WITH JITTER AND BACKOFF ---
-def fetch_with_backoff(url):
-    backoff = INITIAL_BACKOFF
-    for attempt in range(MAX_RETRIES):
-        try:
-            response = requests.get(url, timeout=10, headers=headers)
-            if response.status_code == 200:
-                return response.text
-            else:
-                logger.warning(f"Non-200 status: {response.status_code}")
-        except requests.RequestException as e:
-            logger.error(f"Request failed: {e}")
-
-        # Exponential backoff with jitter
-        jitter = random.uniform(0, backoff)
-        logger.info(f"Retrying in {jitter:.2f} seconds...")
-        time.sleep(jitter)
-        backoff *= 2
-
-    logger.error("Max retries exceeded.")
-    return None
-
 
 # --- SCRAPER FUNCTION ---
 def scrape_page(num, prefecture, page_num):
     url = BASE_URL.format(num, page_num)
-    html = fetch_with_backoff(url)
-    if not html:
+    status_code, html = fetch_with_backoff(url, logger)
+    if status_code != 200:
         return False
 
     soup = BeautifulSoup(html, "html.parser")
@@ -171,8 +139,8 @@ def scrape_page(num, prefecture, page_num):
             floor_plan = translate_text(floor_plan)
 
         # Scrape the actual listing for the contact number and images
-        html2 = fetch_with_backoff(link)
-        if not html2:
+        status_code, html2 = fetch_with_backoff(link, logger)
+        if status_code != 200:
             logger.error("Problem fetching listing link: " + link)
             continue
 

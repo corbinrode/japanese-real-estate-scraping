@@ -1,22 +1,17 @@
-import re
 import time
-import random
-import requests
 import pymongo
 import urllib.parse
 import os
 import bson
 from bs4 import BeautifulSoup
 from uuid import uuid4
-from helpers import translate_text, save_image, get_property_type, get_area_label, setup_logger, convert_to_usd, get_random_user_agent
+from helpers import translate_text, save_image, get_property_type, get_area_label, setup_logger, convert_to_usd, fetch_with_backoff
 from config import settings
 import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 
 BASE_URL = "https://myhome.nifty.com/shinchiku-ikkodate/{}/search/{}/?subtype=bnh,buh&b2=30000000&pnum=40&sort=regDate-desc"
-MAX_RETRIES = 5
-INITIAL_BACKOFF = 30  # in seconds
 MAX_WORKERS = 4
 
 # Thread-local storage for database connections
@@ -42,39 +37,12 @@ collection = db.nifty_collection
 # Set up logger
 logger = setup_logger('nifty', 'nifty')
 
-headers = {
-    "User-Agent": get_random_user_agent()
-}
-
-# --- REQUEST FUNCTION WITH JITTER AND BACKOFF ---
-def fetch_with_backoff(url):
-    backoff = INITIAL_BACKOFF
-    
-    for attempt in range(MAX_RETRIES):
-        try:
-            response = requests.get(url, timeout=10, headers=headers)
-            if response.status_code == 200:
-                return response.text
-            else:
-                logger.warning(f"Non-200 status: {response.status_code}")
-        except requests.RequestException as e:
-            logger.error(f"Request failed: {e}")
-
-        # Exponential backoff with jitter
-        jitter = random.uniform(0, backoff)
-        logger.info(f"Retrying in {jitter:.2f} seconds...")
-        time.sleep(jitter)
-        backoff *= 2
-
-    logger.error("Max retries exceeded.")
-    return None
-
 
 # --- SCRAPER FUNCTION ---
 def scrape_page(prefecture, page_num):
     url = BASE_URL.format(prefecture, page_num)
-    html = fetch_with_backoff(url)
-    if not html:
+    status_code, html = fetch_with_backoff(url, logger)
+    if status_code != 200:
         return False
 
     soup = BeautifulSoup(html, "html.parser")
@@ -151,8 +119,8 @@ def scrape_page(prefecture, page_num):
             listing_data[field] = value
 
         # Scrape the actual listing for the contact number and images
-        html2 = fetch_with_backoff(link)
-        if not html2:
+        status_code, html2 = fetch_with_backoff(link, logger)
+        if status_code != 200:
             logger.error("Problem fetching listing link: " + link)
             continue
 

@@ -1,13 +1,10 @@
-import time
-import random
-import requests
 import pymongo
 import urllib.parse
 import os
 import bson
 from bs4 import BeautifulSoup
 from uuid import uuid4
-from helpers import translate_text, get_table_field_english, save_image, setup_logger, convert_to_usd
+from helpers import translate_text, get_table_field_english, save_image, setup_logger, convert_to_usd, fetch_with_backoff
 from config import settings
 import datetime
 
@@ -26,34 +23,12 @@ client = pymongo.MongoClient("mongodb://%s:%s@%s:%s" % (user, password, settings
 db = client.crawler_data
 collection = db.sumai_collection
 
-# --- REQUEST FUNCTION WITH JITTER AND BACKOFF ---
-def fetch_with_backoff(url):
-    backoff = INITIAL_BACKOFF
-    for attempt in range(MAX_RETRIES):
-        try:
-            response = requests.get(url, timeout=10)
-            if response.status_code == 200:
-                return response.text
-            else:
-                logger.warning(f"Non-200 status: {response.status_code}")
-        except requests.RequestException as e:
-            logger.error(f"Request failed: {e}")
-
-        # Exponential backoff with jitter
-        jitter = random.uniform(0, backoff)
-        logger.info(f"Retrying in {jitter:.2f} seconds...")
-        time.sleep(jitter)
-        backoff *= 2
-
-    logger.error("Max retries exceeded.")
-    return None
-
 
 # --- SCRAPER FUNCTION ---
 def scrape_page(page_num):
     url = BASE_URL.format(page_num)
-    html = fetch_with_backoff(url)
-    if not html:
+    status_code, html = fetch_with_backoff(url, logger, follow_redirect=True)
+    if status_code != 200:
         return False
 
     soup = BeautifulSoup(html, "html.parser")
@@ -87,8 +62,8 @@ def scrape_page(page_num):
         listing_data["link"] = link
 
         # now that we have the link, scrape the specific listing
-        html2 = fetch_with_backoff(link)
-        if not html2:
+        status_code, html2 = fetch_with_backoff(link, logger)
+        if status_code != 200:
             logger.error("Problem fetching listing link: " + link)
             continue
 
