@@ -12,7 +12,7 @@ import logging.handlers
 from base64 import b64decode
 
 MAX_RETRIES = 5
-INITIAL_BACKOFF = 5  # in seconds
+INITIAL_BACKOFF = 0.5  # in seconds
 REQUEST_TIMEOUT = 10
 
 
