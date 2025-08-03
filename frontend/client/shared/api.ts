@@ -472,6 +472,10 @@ export class RealEstateAPI {
   async getFavorites(): Promise<GetFavorites> {
     return this.fetchAPI<GetFavorites>('/v1/favorites/favorites');
   }
+
+  async getListingById(listingId: string): Promise<BackendListing> {
+    return this.fetchAPI<BackendListing>(`/v1/listings/listings/${listingId}`);
+  }
 }
 
 // Create a default API instance

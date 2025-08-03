@@ -11,6 +11,7 @@ import { Layout } from "@/components/layout/Layout";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import RootRedirect from "@/components/RootRedirect";
 import Listings from "./pages/Listings";
+import Favorites from "./pages/Favorites";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import SubscriptionManagementPage from "./pages/SubscriptionManagement";
@@ -65,7 +66,16 @@ const App = () => (
             />
 
             {/* Future protected routes can be added here */}
-            {/* <Route path="/favorites" element={<Layout><ProtectedRoute><Favorites /></ProtectedRoute></Layout>} /> */}
+            <Route 
+              path="/favorites" 
+              element={
+                <Layout>
+                  <ProtectedRoute>
+                    <Favorites />
+                  </ProtectedRoute>
+                </Layout>
+              } 
+            />
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<Layout><NotFound /></Layout>} />

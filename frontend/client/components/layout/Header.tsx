@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { 
@@ -9,13 +9,14 @@ import {
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/AuthContext";
-import { User, Settings, LogOut, CreditCard } from "lucide-react";
+import { User, Settings, LogOut, CreditCard, Heart } from "lucide-react";
 import logo from "@/src/assets/logo.png";
 import headerLogo from "@/src/assets/header.jpeg";
 
 export default function Header() {
   const { user, subscription, isAuthenticated, logout, loading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleLogout = async () => {
     try {
@@ -53,7 +54,7 @@ export default function Header() {
       <div className="absolute inset-0 bg-[#091D35]/70 z-0" />
         <div className="relative z-10" >
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               {/* Logo and Title */}
               <div 
                 className={`flex items-center space-x-2 ${
@@ -72,8 +73,33 @@ export default function Header() {
                 <h1 className="text-2xl font-bold text-white">Akiya Helper Homes</h1>
               </div>
 
+              {/* Navigation Tabs - Only show for authenticated users */}
+              {isAuthenticated && user && (
+                <div className="flex items-center space-x-1 bg-white/10 backdrop-blur-sm rounded-lg p-1 w-full sm:w-auto justify-center sm:justify-start">
+                  <Link to="/listings" className="flex-1 sm:flex-none">
+                    <Button 
+                      variant={location.pathname === '/listings' ? 'default' : 'ghost'}
+                      size="sm"
+                      className="text-white hover:text-white w-full sm:w-auto"
+                    >
+                      All Listings
+                    </Button>
+                  </Link>
+                  <Link to="/favorites" className="flex-1 sm:flex-none">
+                    <Button 
+                      variant={location.pathname === '/favorites' ? 'default' : 'ghost'}
+                      size="sm"
+                      className="text-white hover:text-white w-full sm:w-auto"
+                    >
+                      <Heart className="w-4 h-4 mr-1" />
+                      Favorites
+                    </Button>
+                  </Link>
+                </div>
+              )}
+
               {/* User Menu or Auth Buttons */}
-              <div className="flex items-center">
+              <div className="flex items-center w-full sm:w-auto justify-center sm:justify-end">
                 {loading ? (
                   <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse" />
                 ) : isAuthenticated && user ? (
