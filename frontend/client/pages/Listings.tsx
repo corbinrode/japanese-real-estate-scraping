@@ -7,9 +7,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { CheckCircle, Lock, CreditCard, Phone, ExternalLink, Heart } from "lucide-react";
+import { CheckCircle, Lock, CreditCard, Phone, ExternalLink, Heart, Copy, Link } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import ListingDetailModal from "@/components/ListingDetailModal";
+import { useToast } from "@/hooks/use-toast";
 
 type SortOption = "price-asc" | "price-desc" | "date-new" | "date-old";
 
@@ -17,7 +18,12 @@ export default function Listings() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, subscription } = useAuth();
+  const { toast } = useToast();
   const [successMessage, setSuccessMessage] = useState<string>('');
+  
+  // Get listing ID from URL query parameter
+  const urlParams = new URLSearchParams(location.search);
+  const specificListingId = urlParams.get('listing');
   
   const [filters, setFilters] = useState({
     prefecture: "",
@@ -46,6 +52,8 @@ export default function Listings() {
   const [selectedListing, setSelectedListing] = useState<RealEstateListing | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   
+  // Copy link state
+  const [copyingListingId, setCopyingListingId] = useState<string | null>(null);
 
   // Handle success message from navigation
   useEffect(() => {
@@ -76,6 +84,44 @@ export default function Listings() {
     
     return isActive;
   };
+
+  // Copy link function
+  const copyListingLink = async (listingId: string, event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent card click
+    
+    setCopyingListingId(listingId);
+    
+    try {
+      const baseUrl = window.location.origin;
+      const listingUrl = `${baseUrl}/listings?listing=${listingId}`;
+      
+      await navigator.clipboard.writeText(listingUrl);
+      
+      toast({
+        title: "Link copied!",
+        description: "The listing link has been copied to your clipboard.",
+        duration: 3000,
+      });
+    } catch (err) {
+      console.error('Error copying link:', err);
+      toast({
+        title: "Failed to copy link",
+        description: "Please try again or copy the URL manually.",
+        variant: "destructive",
+        duration: 3000,
+      });
+    } finally {
+      setCopyingListingId(null);
+    }
+  };
+
+  // Filter listings to show only the specific listing if ID is in URL
+  const filteredListings = useMemo(() => {
+    if (specificListingId) {
+      return listings.filter(listing => listing.id === specificListingId);
+    }
+    return listings;
+  }, [listings, specificListingId]);
 
   // Subscription prompt component
   const SubscriptionPrompt = () => (
@@ -331,6 +377,23 @@ export default function Listings() {
         </Alert>
       )}
 
+      {/* Specific Listing Filter Notice */}
+      {specificListingId && (
+        <Alert className="border-blue-200 bg-blue-50 mb-6">
+          <Link className="h-4 w-4 text-blue-600" />
+          <AlertDescription className="text-blue-700">
+            Showing specific listing. 
+            <Button 
+              variant="link" 
+              className="p-0 h-auto text-blue-700 underline ml-2"
+              onClick={() => navigate('/listings')}
+            >
+              View all listings
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Filters and Controls */}
       <div className="bg-white rounded-lg shadow-sm border p-6 mb-8">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-4">
@@ -457,7 +520,7 @@ export default function Listings() {
       {/* Listings Grid */}
       {!loading && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
-          {listings.map((listing) => (
+          {filteredListings.map((listing) => (
             <Card 
               key={listing.id} 
               className="group hover:shadow-lg transition-shadow duration-200 overflow-hidden cursor-pointer"
@@ -505,6 +568,8 @@ export default function Listings() {
                     {isFavorited(listing.id) ? 'Favorited' : 'Add to Favorites'}
                   </span>
                 </div>
+                
+
               </div>
               
               <CardContent className="p-4">
@@ -605,6 +670,19 @@ export default function Listings() {
                       </div>
                     </div>
                   )}
+                  
+                  {/* Copy Link Button */}
+                  <div className="pt-2 border-t">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full flex items-center justify-center gap-2 text-xs"
+                      onClick={(e) => copyListingLink(listing.id, e)}
+                    >
+                      <Copy className="w-3 h-3" />
+                      {copyingListingId === listing.id ? 'Copying...' : 'Copy Link'}
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -613,7 +691,7 @@ export default function Listings() {
       )}
 
       {/* No results message */}
-      {!loading && listings.length === 0 && (
+      {!loading && filteredListings.length === 0 && (
         <div className="text-center py-12">
           <div className="text-slate-500 text-lg">No listings found</div>
           <div className="text-slate-400 mt-2">Try adjusting your filters</div>

@@ -5,13 +5,15 @@ import { realEstateAPI } from "@shared/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { CheckCircle, Heart, Phone, ExternalLink } from "lucide-react";
+import { CheckCircle, Heart, Phone, ExternalLink, Copy } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import ListingDetailModal from "@/components/ListingDetailModal";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Favorites() {
   const navigate = useNavigate();
   const { user, subscription } = useAuth();
+  const { toast } = useToast();
   const [successMessage, setSuccessMessage] = useState<string>('');
   
   // State
@@ -23,6 +25,9 @@ export default function Favorites() {
   // Modal state
   const [selectedListing, setSelectedListing] = useState<RealEstateListing | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // Copy link state
+  const [copyingListingId, setCopyingListingId] = useState<string | null>(null);
 
   // Check if user has active subscription
   const hasActiveSubscription = () => {
@@ -86,6 +91,36 @@ export default function Favorites() {
       setFavoriteListings(prev => prev.filter(listing => listing.id !== listingId));
     } catch (err) {
       console.error('Error removing favorite:', err);
+    }
+  };
+
+  // Copy link function
+  const copyListingLink = async (listingId: string, event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent card click
+    
+    setCopyingListingId(listingId);
+    
+    try {
+      const baseUrl = window.location.origin;
+      const listingUrl = `${baseUrl}/listings?listing=${listingId}`;
+      
+      await navigator.clipboard.writeText(listingUrl);
+      
+      toast({
+        title: "Link copied!",
+        description: "The listing link has been copied to your clipboard.",
+        duration: 3000,
+      });
+    } catch (err) {
+      console.error('Error copying link:', err);
+      toast({
+        title: "Failed to copy link",
+        description: "Please try again or copy the URL manually.",
+        variant: "destructive",
+        duration: 3000,
+      });
+    } finally {
+      setCopyingListingId(null);
     }
   };
 
@@ -353,6 +388,19 @@ export default function Favorites() {
                       </div>
                     </div>
                   )}
+                  
+                  {/* Copy Link Button */}
+                  <div className="pt-2 border-t">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full flex items-center justify-center gap-2 text-xs"
+                      onClick={(e) => copyListingLink(listing.id, e)}
+                    >
+                      <Copy className="w-3 h-3" />
+                      {copyingListingId === listing.id ? 'Copying...' : 'Copy Link'}
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
