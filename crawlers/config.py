@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     DEEPL_API_KEY: str
     LOG_DIR: str
     ZYTE_API_KEY: str = ""
+    ENV: str = "prod"
 
     class Config:
         env_file = ".env"

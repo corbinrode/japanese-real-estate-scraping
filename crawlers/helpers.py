@@ -17,11 +17,28 @@ REQUEST_TIMEOUT = 10
 
 
 def translate_text(text, target_lang="EN-US"):
-    auth_key = settings.DEEPL_API_KEY
-    translator = deepl.Translator(auth_key)
+    if settings.ENV == "dev":
+        url = "http://127.0.0.1:5000/translate"
 
-    result = translator.translate_text(text, target_lang=target_lang)
-    return result.text
+        payload = {
+            "q": text,
+            "source": "ja",
+            "target": "en",
+            "format": "text",
+        }
+
+        headers = {
+            "Content-Type": "application/json"
+        }
+
+        response = requests.post(url, json=payload, headers=headers)
+        return response.json()["translatedText"]
+    else:
+        auth_key = settings.DEEPL_API_KEY
+        translator = deepl.Translator(auth_key)
+
+        result = translator.translate_text(text, target_lang=target_lang)
+        return result.text
 
 
 def save_image(image_url, filename, folder):

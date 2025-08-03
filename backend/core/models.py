@@ -109,3 +109,19 @@ class LoginResponse(BaseModel):
     token_type: str
     user: User
     subscription: Optional[Subscription] = None 
+
+# Favorite models
+class CreateFavoriteRequest(BaseModel):
+    listing_id: str
+    
+class Favorite(BaseModel):
+    user_id: str
+    listing_id: str
+    created_at: datetime
+
+class DeleteFavorite(BaseModel):
+    user_id: str
+    listing_id: str
+
+class GetFavorites(BaseModel):
+    favorites: List[str]

@@ -1,6 +1,8 @@
 import math
 import datetime
-from fastapi import APIRouter, Query, Depends
+import uuid
+import bson
+from fastapi import APIRouter, Query, Depends, HTTPException
 from typing import Optional
 from core.database import listings_db as db
 from core.config import settings
@@ -66,7 +68,7 @@ def get_all_listings_filtered(
         
         # Project only the fields we need
         {"$project": {
-            "_id": 0,
+            "_id": {"$toString": "$_id"},
             "Prefecture": 1,
             "Building - Layout": 1,
             "Sale Price": 1,
@@ -93,7 +95,7 @@ def get_all_listings_filtered(
                 "pipeline": [
                     {"$match": query},
                     {"$project": {
-                        "_id": 0,
+                        "_id": {"$toString": "$_id"},
                         "Prefecture": 1,
                         "Building - Layout": 1,
                         "Sale Price": 1,
@@ -167,3 +169,28 @@ def get_listings(
         limit=limit
     )
     return results
+
+
+@router.get("/listings/{listing_id}")
+def get_listing_by_id(
+    listing_id: str,
+    current_user: User = Depends(get_current_subscribed_user),  # Require authenticated user with subscription
+):
+    """Get a specific listing by ID"""
+    try:
+        # Convert string ID to UUID
+        uuid_value = uuid.UUID(listing_id)
+        
+        # Search for the listing across all collections
+        collection_names = list(db.list_collection_names())
+        for collection_name in collection_names:
+            listing = db[collection_name].find_one({"_id": bson.Binary.from_uuid(uuid_value)})
+            if listing:
+                # Convert _id to string for JSON serialization
+                listing["_id"] = str(listing["_id"])
+                return listing
+        
+        raise HTTPException(status_code=404, detail="Listing not found")
+        
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid listing ID format")

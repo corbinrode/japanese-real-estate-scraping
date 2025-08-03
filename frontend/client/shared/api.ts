@@ -93,6 +93,7 @@ export interface PaymentConfig {
 
 // Backend data structure interfaces
 export interface BackendListing {
+  _id: string; // UUID from database
   Prefecture: string;
   "Building - Layout"?: string;
   "Sale Price"?: number;
@@ -142,6 +143,22 @@ export interface RealEstateListing {
   buildingStructure?: string;
   contactNumber?: string;
   referenceUrl?: string;
+}
+
+export interface Favorite {
+  user_id: string;
+  listing_id: string;
+  created_at: string;
+}
+
+export interface DeleteFavorite {
+  user_id: string;
+  listing_id: string;
+}
+
+
+export interface GetFavorites {
+  favorites: string[];
 }
 
 // API client functions
@@ -368,16 +385,10 @@ export class RealEstateAPI {
     return this.fetchAPI<BackendListingsResponse>(endpoint);
   }
 
-  async getUniqueLayouts(): Promise<BackendLayoutsResponse> {
-    return this.fetchAPI<BackendLayoutsResponse>('/v1/listings/unique-layouts');
-  }
-
   // Helper function to transform backend data to frontend format
   transformBackendListing(backendListing: BackendListing, index: number): RealEstateListing {
-    // Generate a unique ID if not available
-    const id = backendListing.link ? 
-      backendListing.link.split('/').pop() || index.toString() : 
-      index.toString();
+    // Use the actual UUID from the database
+    const id = backendListing._id;
 
     // Generate a title based on available data
     const title = backendListing["Property Type"] && backendListing["Property Location"] ?
@@ -442,6 +453,28 @@ export class RealEstateAPI {
       contactNumber: backendListing["Contact Number"],
       referenceUrl: backendListing["Reference URL"]
     };
+  }
+
+  // Favorite methods
+  async createFavorite(listing_id: string): Promise<Favorite> {
+    return this.fetchAPI<Favorite>('/v1/favorites/favorites', {
+      method: 'POST',
+      body: JSON.stringify({ listing_id }),
+    });
+  }
+
+  async deleteFavorite(listing_id: string): Promise<DeleteFavorite> {
+    return this.fetchAPI<DeleteFavorite>(`/v1/favorites/favorites/${listing_id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getFavorites(): Promise<GetFavorites> {
+    return this.fetchAPI<GetFavorites>('/v1/favorites/favorites');
+  }
+
+  async getListingById(listingId: string): Promise<BackendListing> {
+    return this.fetchAPI<BackendListing>(`/v1/listings/listings/${listingId}`);
   }
 }
 
