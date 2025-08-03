@@ -218,7 +218,8 @@ def fetch_with_backoff(url, logger, follow_redirect=False):
     headers = {
         "User-Agent": get_random_user_agent()
     }
-
+    backoff = INITIAL_BACKOFF
+    
     # first try a regular request
     for attempt in range(MAX_RETRIES):
         try:
