@@ -11,7 +11,6 @@ class Settings(BaseSettings):
     DB_PASSWORD: str
     CRAWLER_DB: str  # For listings data
     USER_DB: str     # For user and subscription data
-    FAVORITES_DB: str # For favorites data
     ENVIRONMENT: str
 
     @property
