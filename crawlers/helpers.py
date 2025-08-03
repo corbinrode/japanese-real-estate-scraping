@@ -238,6 +238,7 @@ def fetch_with_backoff(url, logger, follow_redirect=False):
         backoff *= 2
 
     # if that fails, use zyte api
+    logger.info(f"Using zyte api to fetch {url}")
     api_response = requests.post(
         "https://api.zyte.com/v1/extract",
         auth=(settings.ZYTE_API_KEY, ""),
