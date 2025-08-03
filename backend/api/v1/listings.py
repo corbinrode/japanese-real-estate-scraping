@@ -66,7 +66,7 @@ def get_all_listings_filtered(
         
         # Project only the fields we need
         {"$project": {
-            "_id": 0,
+            "_id": {"$toString": "$_id"},
             "Prefecture": 1,
             "Building - Layout": 1,
             "Sale Price": 1,
@@ -93,7 +93,7 @@ def get_all_listings_filtered(
                 "pipeline": [
                     {"$match": query},
                     {"$project": {
-                        "_id": 0,
+                        "_id": {"$toString": "$_id"},
                         "Prefecture": 1,
                         "Building - Layout": 1,
                         "Sale Price": 1,

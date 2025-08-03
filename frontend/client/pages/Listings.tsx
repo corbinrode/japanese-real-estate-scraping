@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { RealEstateListing, PREFECTURES, getPrefectureValue, getPrefectureDisplay } from "@shared/real-estate";
 import { realEstateAPI } from "@shared/api";
@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { CheckCircle, Lock, CreditCard, Phone, ExternalLink } from "lucide-react";
+import { CheckCircle, Lock, CreditCard, Phone, ExternalLink, Heart } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import ListingDetailModal from "@/components/ListingDetailModal";
 
@@ -37,6 +37,10 @@ export default function Listings() {
   const [error, setError] = useState<string | null>(null);
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
+  
+  // Favorites state
+  const [favorites, setFavorites] = useState<string[]>([]);
+  const [favoritesLoading, setFavoritesLoading] = useState(false);
   
   // Modal state
   const [selectedListing, setSelectedListing] = useState<RealEstateListing | null>(null);
@@ -199,6 +203,15 @@ export default function Listings() {
     }
   }, [sortBy, currentPage, itemsPerPage, searchTrigger, user, subscription]);
 
+  // Fetch favorites when user changes
+  useEffect(() => {
+    if (user) {
+      fetchFavorites();
+    } else {
+      setFavorites([]);
+    }
+  }, [user]);
+
   const formatPrice = (price: number) => {
     return `$${price.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
   };
@@ -227,6 +240,47 @@ export default function Listings() {
   const handleModalClose = () => {
     setIsModalOpen(false);
     setSelectedListing(null);
+  };
+
+  // Fetch user favorites
+  const fetchFavorites = async () => {
+    if (!user) return;
+    
+    setFavoritesLoading(true);
+    try {
+      const response = await realEstateAPI.getFavorites();
+      setFavorites(response.favorites);
+    } catch (err) {
+      console.error('Error fetching favorites:', err);
+    } finally {
+      setFavoritesLoading(false);
+    }
+  };
+
+  // Toggle favorite status
+  const toggleFavorite = async (listingId: string, event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent card click
+    
+    if (!user) return;
+    
+    try {
+      if (favorites.includes(listingId)) {
+        // Remove from favorites
+        await realEstateAPI.deleteFavorite(listingId);
+        setFavorites(prev => prev.filter(id => id !== listingId));
+      } else {
+        // Add to favorites
+        await realEstateAPI.createFavorite(listingId);
+        setFavorites(prev => [...prev, listingId]);
+      }
+    } catch (err) {
+      console.error('Error toggling favorite:', err);
+    }
+  };
+
+  // Check if a listing is favorited
+  const isFavorited = (listingId: string) => {
+    return favorites.includes(listingId);
   };
 
   if (loading && listings.length === 0) {
@@ -438,6 +492,19 @@ export default function Listings() {
                     {formatPrice(listing.price)}
                   </div>
                 )}
+                <div 
+                  className={`absolute bottom-3 right-3 backdrop-blur-sm rounded-full px-2 py-1 text-sm font-semibold flex items-center cursor-pointer transition-colors ${
+                    isFavorited(listing.id) 
+                      ? 'bg-red-500/90 text-white' 
+                      : 'bg-white/90 text-slate-900 hover:bg-red-50'
+                  }`}
+                  onClick={(e) => toggleFavorite(listing.id, e)}
+                >
+                  <Heart className={`w-3 h-3 mr-1 ${isFavorited(listing.id) ? 'fill-current' : ''}`} />
+                  <span className="text-xs">
+                    {isFavorited(listing.id) ? 'Favorited' : 'Add to Favorites'}
+                  </span>
+                </div>
               </div>
               
               <CardContent className="p-4">

@@ -15,7 +15,6 @@ export default function ListingDetailModal({ listing, isOpen, onClose }: Listing
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   if (!listing) {
-    console.log('Modal: No listing provided');
     return null;
   }
 

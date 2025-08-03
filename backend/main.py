@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from api.v1 import listings, auth, payments
+from api.v1 import listings, auth, payments, favorites
 from core.config import settings
 
 
@@ -34,6 +34,7 @@ app.mount("/images", StaticFiles(directory="images"), name="images")
 app.include_router(listings.router, prefix="/v1/listings", tags=["listings"])
 app.include_router(auth.router, prefix="/v1/auth", tags=["authentication"])
 app.include_router(payments.router, prefix="/v1/payments", tags=["payments"])
+app.include_router(favorites.router, prefix="/v1/favorites", tags=["favorites"])
 
 @app.get("/")
 async def root():
