@@ -16,6 +16,12 @@ def get_all_listings_filtered(
     layout: Optional[str] = None,
     sale_price_min: Optional[int] = None,
     sale_price_max: Optional[int] = None,
+    building_area_min: Optional[int] = None,
+    building_area_max: Optional[int] = None,
+    land_area_min: Optional[int] = None,
+    land_area_max: Optional[int] = None,
+    construction_year_min: Optional[int] = None,
+    construction_year_max: Optional[int] = None,
     sort_by: Optional[str] = "createdAt",
     sort_order: Optional[str] = "desc",
     page: int = 1,
@@ -66,6 +72,158 @@ def get_all_listings_filtered(
         # Match documents based on query filters
         {"$match": query},
         
+        # Project and add computed fields
+        {"$addFields": {
+            # Extract first number from "Building - Area" string
+            "building_area_numeric": {
+                "$let": {
+                    "vars": {
+                        "matches": {
+                            "$regexFind": {
+                                "input": {"$ifNull": ["$Building - Area", ""]},
+                                "regex": r"([0-9]+(?:\.[0-9]+)?)"
+                            }
+                        }
+                    },
+                    "in": {
+                        "$cond": {
+                            "if": {"$ne": ["$$matches", None]},
+                            "then": {"$toDouble": "$$matches.match"},
+                            "else": None
+                        }
+                    }
+                }
+            },
+            # Extract first number from "Land - Area" string
+            "land_area_numeric": {
+                "$let": {
+                    "vars": {
+                        "matches": {
+                            "$regexFind": {
+                                "input": {"$ifNull": ["$Land - Area", ""]},
+                                "regex": r"([0-9]+(?:\.[0-9]+)?)"
+                            }
+                        }
+                    },
+                    "in": {
+                        "$cond": {
+                            "if": {"$ne": ["$$matches", None]},
+                            "then": {"$toDouble": "$$matches.match"},
+                            "else": None
+                        }
+                    }
+                }
+            },
+            # Extract construction year from "Building - Construction Date" string
+            # Look for 4-digit number first, then "X years" format
+            "construction_year": {
+                "$let": {
+                    "vars": {
+                        "dateStr": {"$ifNull": ["$Building - Construction Date", ""]},
+                        "currentYear": {"$year": "$$NOW"}
+                    },
+                    "in": {
+                        "$cond": {
+                            "if": {"$eq": ["$$dateStr", ""]},
+                            "then": None,
+                            "else": {
+                                "$let": {
+                                    "vars": {
+                                        # Look for any 4-digit number
+                                        "fourDigitMatch": {
+                                            "$regexFind": {
+                                                "input": "$$dateStr",
+                                                "regex": r"(\d{4})"
+                                            }
+                                        }
+                                    },
+                                    "in": {
+                                        "$cond": {
+                                            "if": {"$ne": ["$$fourDigitMatch", None]},
+                                            "then": {"$toInt": "$$fourDigitMatch.match"},
+                                            "else": {
+                                                "$let": {
+                                                    "vars": {
+                                                        # Look for "X years" format
+                                                        "yearsMatch": {
+                                                            "$regexFind": {
+                                                                "input": "$$dateStr",
+                                                                "regex": r"(\d+)\s*years?"
+                                                            }
+                                                        }
+                                                    },
+                                                    "in": {
+                                                        "$cond": {
+                                                            "if": {"$ne": ["$$yearsMatch", None]},
+                                                            "then": {
+                                                                "$subtract": [
+                                                                    "$$currentYear",
+                                                                    {"$toInt": {"$arrayElemAt": ["$$yearsMatch.captures", 0]}}
+                                                                ]
+                                                            },
+                                                            "else": None
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }},
+        
+        # Filter by building area if specified
+        *([{
+            "$match": {
+                "building_area_numeric": {"$gte": building_area_min}
+            }
+        }] if building_area_min is not None else []),
+        
+        *([{
+            "$match": {
+                "building_area_numeric": {"$lte": building_area_max}
+            }
+        }] if building_area_max is not None else []),
+        
+                    # Filter by land area if specified
+            *([{
+                "$match": {
+                    "land_area_numeric": {"$gte": land_area_min}
+                }
+            }] if land_area_min is not None else []),
+            
+            *([{
+                "$match": {
+                    "land_area_numeric": {"$lte": land_area_max}
+                }
+            }] if land_area_max is not None else []),
+            
+            # Filter by construction year if specified (exclude nulls/invalid values)
+            *([{
+                "$match": {
+                    "construction_year": {
+                        "$gte": construction_year_min,
+                        "$ne": None,
+                        "$type": "number"
+                    }
+                }
+            }] if construction_year_min is not None else []),
+            
+            *([{
+                "$match": {
+                    "construction_year": {
+                        "$lte": construction_year_max,
+                        "$ne": None,
+                        "$type": "number"
+                    }
+                }
+            }] if construction_year_max is not None else []),
+
+        
         # Project only the fields we need
         {"$project": {
             "_id": {"$toString": "$_id"},
@@ -83,36 +241,196 @@ def get_all_listings_filtered(
             "createdAt": 1,
             "images": 1,
             "Contact Number": 1,
-            "Reference URL": 1
+            "Reference URL": 1,
+            "building_area_numeric": 1,  # Include for debugging if needed
+            "land_area_numeric": 1,  # Include for debugging if needed
+            "construction_year": 1  # Include for debugging if needed
         }}
     ]
     
     # Add $unionWith for all other collections
     for coll_name in collection_names[1:]:
+        union_pipeline = [
+            {"$match": query},
+            
+            # Project and add computed fields
+            {"$addFields": {
+                # Extract first number from "Building - Area" string
+                "building_area_numeric": {
+                    "$let": {
+                        "vars": {
+                            "matches": {
+                                "$regexFind": {
+                                    "input": {"$ifNull": ["$Building - Area", ""]},
+                                    "regex": r"([0-9]+(?:\.[0-9]+)?)"
+                                }
+                            }
+                        },
+                        "in": {
+                            "$cond": {
+                                "if": {"$ne": ["$$matches", None]},
+                                "then": {"$toDouble": "$$matches.match"},
+                                "else": None
+                            }
+                        }
+                    }
+                },
+                # Extract first number from "Land - Area" string
+                "land_area_numeric": {
+                    "$let": {
+                        "vars": {
+                            "matches": {
+                                "$regexFind": {
+                                    "input": {"$ifNull": ["$Land - Area", ""]},
+                                    "regex": r"([0-9]+(?:\.[0-9]+)?)"
+                                }
+                            }
+                        },
+                        "in": {
+                            "$cond": {
+                                "if": {"$ne": ["$$matches", None]},
+                                "then": {"$toDouble": "$$matches.match"},
+                                "else": None
+                            }
+                        }
+                    }
+                },
+                # Extract construction year from "Building - Construction Date" string
+                # Look for 4-digit number first, then "X years" format
+                "construction_year": {
+                    "$let": {
+                        "vars": {
+                            "dateStr": {"$ifNull": ["$Building - Construction Date", ""]},
+                            "currentYear": {"$year": "$$NOW"}
+                        },
+                        "in": {
+                            "$cond": {
+                                "if": {"$eq": ["$$dateStr", ""]},
+                                "then": None,
+                                "else": {
+                                    "$let": {
+                                        "vars": {
+                                            # Look for any 4-digit number
+                                            "fourDigitMatch": {
+                                                "$regexFind": {
+                                                    "input": "$$dateStr",
+                                                    "regex": r"(\d{4})"
+                                                }
+                                            }
+                                        },
+                                        "in": {
+                                            "$cond": {
+                                                "if": {"$ne": ["$$fourDigitMatch", None]},
+                                                "then": {"$toInt": "$$fourDigitMatch.match"},
+                                                "else": {
+                                                    "$let": {
+                                                        "vars": {
+                                                            # Look for "X years" format
+                                                            "yearsMatch": {
+                                                                "$regexFind": {
+                                                                    "input": "$$dateStr",
+                                                                    "regex": r"(\d+)\s*years?"
+                                                                }
+                                                            }
+                                                        },
+                                                        "in": {
+                                                            "$cond": {
+                                                                "if": {"$ne": ["$$yearsMatch", None]},
+                                                                                                                                 "then": {
+                                                                     "$subtract": [
+                                                                         "$$currentYear",
+                                                                         {"$toInt": {"$arrayElemAt": ["$$yearsMatch.captures", 0]}}
+                                                                     ]
+                                                                 },
+                                                                "else": None
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }},
+            
+            # Filter by building area if specified
+            *([{
+                "$match": {
+                    "building_area_numeric": {"$gte": building_area_min}
+                }
+            }] if building_area_min is not None else []),
+            
+            *([{
+                "$match": {
+                    "building_area_numeric": {"$lte": building_area_max}
+                }
+            }] if building_area_max is not None else []),
+            
+            # Filter by land area if specified
+            *([{
+                "$match": {
+                    "land_area_numeric": {"$gte": land_area_min}
+                }
+            }] if land_area_min is not None else []),
+            
+            *([{
+                "$match": {
+                    "land_area_numeric": {"$lte": land_area_max}
+                }
+            }] if land_area_max is not None else []),
+            
+            # Filter by construction year if specified (exclude nulls/invalid values)
+            *([{
+                "$match": {
+                    "construction_year": {
+                        "$gte": construction_year_min,
+                        "$ne": None,
+                        "$type": "number"
+                    }
+                }
+            }] if construction_year_min is not None else []),
+            
+            *([{
+                "$match": {
+                    "construction_year": {
+                        "$lte": construction_year_max,
+                        "$ne": None,
+                        "$type": "number"
+                    }
+                }
+            }] if construction_year_max is not None else []),
+            
+            {"$project": {
+                "_id": {"$toString": "$_id"},
+                "Prefecture": 1,
+                "Building - Layout": 1,
+                "Sale Price": 1,
+                "link": 1,
+                "Building - Area": 1,
+                "Land - Area": 1,
+                "Building - Construction Date": 1,
+                "Building - Structure": 1,
+                "Property Type": 1,
+                "Property Location": 1,
+                "Transportation": 1,
+                "createdAt": 1,
+                "images": 1,
+                "Contact Number": 1,
+                "Reference URL": 1,
+                "building_area_numeric": 1,  # Include for debugging if needed
+                "land_area_numeric": 1,  # Include for debugging if needed
+                "construction_year": 1  # Include for debugging if needed
+            }}
+        ]
+        
         pipeline.append({
             "$unionWith": {
                 "coll": coll_name,
-                "pipeline": [
-                    {"$match": query},
-                    {"$project": {
-                        "_id": {"$toString": "$_id"},
-                        "Prefecture": 1,
-                        "Building - Layout": 1,
-                        "Sale Price": 1,
-                        "link": 1,
-                        "Building - Area": 1,
-                        "Land - Area": 1,
-                        "Building - Construction Date": 1,
-                        "Building - Structure": 1,
-                        "Property Type": 1,
-                        "Property Location": 1,
-                        "Transportation": 1,
-                        "createdAt": 1,
-                        "images": 1,
-                        "Contact Number": 1,
-                        "Reference URL": 1
-                    }}
-                ]
+                "pipeline": union_pipeline
             }
         })
     
@@ -152,6 +470,12 @@ def get_listings(
     layout: Optional[str] = Query(None),
     sale_price_min: Optional[int] = Query(None),
     sale_price_max: Optional[int] = Query(None),
+    building_area_min: Optional[int] = Query(None),
+    building_area_max: Optional[int] = Query(None),
+    land_area_min: Optional[int] = Query(None),
+    land_area_max: Optional[int] = Query(None),
+    construction_year_min: Optional[int] = Query(None),
+    construction_year_max: Optional[int] = Query(None),
     sort_by: Optional[str] = Query("createdAt", regex="^(createdAt|sale_price)$"),
     sort_order: Optional[str] = Query("desc", regex="^(asc|desc)$"),
     page: int = Query(1, ge=1),
@@ -163,6 +487,12 @@ def get_listings(
         layout=layout,
         sale_price_min=sale_price_min,
         sale_price_max=sale_price_max,
+        building_area_min=building_area_min,
+        building_area_max=building_area_max,
+        land_area_min=land_area_min,
+        land_area_max=land_area_max,
+        construction_year_min=construction_year_min,
+        construction_year_max=construction_year_max,
         sort_by=sort_by,
         sort_order=sort_order,
         page=page,
