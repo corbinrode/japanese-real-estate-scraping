@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { CheckCircle, Lock, CreditCard, Phone, ExternalLink, Heart, Copy, Link } from "lucide-react";
+import { CheckCircle, Lock, CreditCard, Phone, ExternalLink, Heart, Copy, Link, ChevronDown, ChevronUp } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import ListingDetailModal from "@/components/ListingDetailModal";
 import { useToast } from "@/hooks/use-toast";
@@ -29,7 +29,21 @@ export default function Listings() {
     prefecture: "",
     priceMin: "",
     priceMax: "", 
-    floorPlan: ""
+    floorPlan: "",
+    areaMin: "",
+    areaMax: "",
+    landAreaMin: "",
+    landAreaMax: "",
+    constructionYearMin: "",
+    constructionYearMax: ""
+  });
+  
+  // Collapsible filter sections
+  const [expandedSections, setExpandedSections] = useState({
+    price: false,
+    area: false,
+    landArea: false,
+    constructionYear: false
   });
   
   const [sortBy, setSortBy] = useState<SortOption>("date-new");
@@ -203,6 +217,12 @@ export default function Listings() {
       if (filters.floorPlan) params.layout = filters.floorPlan;
       if (filters.priceMin) params.sale_price_min = parseInt(filters.priceMin);
       if (filters.priceMax) params.sale_price_max = parseInt(filters.priceMax);
+      if (filters.areaMin) params.building_area_min = parseInt(filters.areaMin);
+      if (filters.areaMax) params.building_area_max = parseInt(filters.areaMax);
+      if (filters.landAreaMin) params.land_area_min = parseInt(filters.landAreaMin);
+      if (filters.landAreaMax) params.land_area_max = parseInt(filters.landAreaMax);
+      if (filters.constructionYearMin) params.construction_year_min = parseInt(filters.constructionYearMin);
+      if (filters.constructionYearMax) params.construction_year_max = parseInt(filters.constructionYearMax);
 
       // Add sorting
       if (sortBy === "price-asc") {
@@ -262,12 +282,31 @@ export default function Listings() {
     return `$${price.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
   };
 
+  const toggleSection = (section: keyof typeof expandedSections) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
+  };
+
   const clearFilters = () => {
     setFilters({
       prefecture: "",
       priceMin: "",
       priceMax: "",
-      floorPlan: ""
+      floorPlan: "",
+      areaMin: "",
+      areaMax: "",
+      landAreaMin: "",
+      landAreaMax: "",
+      constructionYearMin: "",
+      constructionYearMax: ""
+    });
+    setExpandedSections({
+      price: false,
+      area: false,
+      landArea: false,
+      constructionYear: false
     });
     setCurrentPage(1);
     setSearchTrigger(prev => prev + 1);
@@ -394,9 +433,9 @@ export default function Listings() {
         </Alert>
       )}
 
-      {/* Filters and Controls */}
+            {/* Filters and Controls */}
       <div className="bg-white rounded-lg shadow-sm border p-6 mb-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7 gap-4 mb-4">
           {/* Prefecture Filter */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Prefecture</label>
@@ -430,29 +469,136 @@ export default function Listings() {
             </div>
           </div>
 
-          {/* Price Range */}
+          {/* Collapsible Price Range */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Min Price ($)</label>
-            <Input
-              type="number"
-              placeholder="Min price"
-              value={filters.priceMin}
-              onChange={(e) => {
-                setFilters(prev => ({ ...prev, priceMin: e.target.value }));
-              }}
-            />
+            <label className="block text-sm font-medium text-slate-700 mb-2">Price Range</label>
+            <Button
+              variant="outline"
+              className="w-full justify-between h-10"
+              onClick={() => toggleSection('price')}
+            >
+              <span className="text-sm">Price Range</span>
+              {expandedSections.price ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
+            {expandedSections.price && (
+              <div className="mt-2 space-y-2">
+                <Input
+                  type="number"
+                  placeholder="Min price ($)"
+                  value={filters.priceMin}
+                  onChange={(e) => {
+                    setFilters(prev => ({ ...prev, priceMin: e.target.value }));
+                  }}
+                />
+                <Input
+                  type="number"
+                  placeholder="Max price ($)"
+                  value={filters.priceMax}
+                  onChange={(e) => {
+                    setFilters(prev => ({ ...prev, priceMax: e.target.value }));
+                  }}
+                />
+              </div>
+            )}
           </div>
-          
+
+          {/* Collapsible Building Area */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Max Price ($)</label>
-            <Input
-              type="number"
-              placeholder="Max price"
-              value={filters.priceMax}
-              onChange={(e) => {
-                setFilters(prev => ({ ...prev, priceMax: e.target.value }));
-              }}
-            />
+            <label className="block text-sm font-medium text-slate-700 mb-2">Building Area</label>
+            <Button
+              variant="outline"
+              className="w-full justify-between h-10"
+              onClick={() => toggleSection('area')}
+            >
+              <span className="text-sm">Building Area</span>
+              {expandedSections.area ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
+            {expandedSections.area && (
+              <div className="mt-2 space-y-2">
+                <Input
+                  type="number"
+                  placeholder="Min area (m²)"
+                  value={filters.areaMin}
+                  onChange={(e) => {
+                    setFilters(prev => ({ ...prev, areaMin: e.target.value }));
+                  }}
+                />
+                <Input
+                  type="number"
+                  placeholder="Max area (m²)"
+                  value={filters.areaMax}
+                  onChange={(e) => {
+                    setFilters(prev => ({ ...prev, areaMax: e.target.value }));
+                  }}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Collapsible Land Area */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Land Area</label>
+            <Button
+              variant="outline"
+              className="w-full justify-between h-10"
+              onClick={() => toggleSection('landArea')}
+            >
+              <span className="text-sm">Land Area</span>
+              {expandedSections.landArea ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
+            {expandedSections.landArea && (
+              <div className="mt-2 space-y-2">
+                <Input
+                  type="number"
+                  placeholder="Min land area (m²)"
+                  value={filters.landAreaMin}
+                  onChange={(e) => {
+                    setFilters(prev => ({ ...prev, landAreaMin: e.target.value }));
+                  }}
+                />
+                <Input
+                  type="number"
+                  placeholder="Max land area (m²)"
+                  value={filters.landAreaMax}
+                  onChange={(e) => {
+                    setFilters(prev => ({ ...prev, landAreaMax: e.target.value }));
+                  }}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Collapsible Construction Year */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Construction Year</label>
+            <Button
+              variant="outline"
+              className="w-full justify-between h-10"
+              onClick={() => toggleSection('constructionYear')}
+            >
+              <span className="text-sm">Construction Year</span>
+              {expandedSections.constructionYear ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
+            {expandedSections.constructionYear && (
+              <div className="mt-2 space-y-2">
+                <Input
+                  type="number"
+                  placeholder="Built after (e.g. 1990)"
+                  value={filters.constructionYearMin}
+                  onChange={(e) => {
+                    setFilters(prev => ({ ...prev, constructionYearMin: e.target.value }));
+                  }}
+                />
+                <Input
+                  type="number"
+                  placeholder="Built before (e.g. 2020)"
+                  value={filters.constructionYearMax}
+                  onChange={(e) => {
+                    setFilters(prev => ({ ...prev, constructionYearMax: e.target.value }));
+                  }}
+                />
+              </div>
+            )}
           </div>
 
           {/* Sort By */}

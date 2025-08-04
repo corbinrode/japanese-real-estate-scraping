@@ -220,12 +220,6 @@ export default function Favorites() {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">My Favorites</h1>
-        <p className="text-gray-600">
-          {favorites.length === 0 
-            ? "You haven't added any favorites yet." 
-            : `You have ${favorites.length} favorite listing${favorites.length === 1 ? '' : 's'}.`
-          }
-        </p>
       </div>
 
       {/* No favorites message */}
