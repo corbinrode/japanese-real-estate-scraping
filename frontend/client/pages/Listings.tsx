@@ -472,14 +472,30 @@ export default function Listings() {
           {/* Collapsible Price Range */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Price Range</label>
-            <Button
-              variant="outline"
-              className="w-full justify-between h-10"
-              onClick={() => toggleSection('price')}
-            >
-              <span className="text-sm">Price Range</span>
-              {expandedSections.price ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="w-full justify-between h-10"
+                onClick={() => toggleSection('price')}
+              >
+                <span className="text-sm">Price Range</span>
+                {expandedSections.price ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </Button>
+              {(filters.priceMin || filters.priceMax) && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => {
+                    setFilters(prev => ({ ...prev, priceMin: "", priceMax: "" }));
+                    setCurrentPage(1);
+                    setSearchTrigger(prev => prev + 1);
+                  }}
+                  className="px-2"
+                >
+                  ✕
+                </Button>
+              )}
+            </div>
             {expandedSections.price && (
               <div className="mt-2 space-y-2">
                 <Input
@@ -505,14 +521,30 @@ export default function Listings() {
           {/* Collapsible Building Area */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Building Area</label>
-            <Button
-              variant="outline"
-              className="w-full justify-between h-10"
-              onClick={() => toggleSection('area')}
-            >
-              <span className="text-sm">Building Area</span>
-              {expandedSections.area ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="w-full justify-between h-10"
+                onClick={() => toggleSection('area')}
+              >
+                <span className="text-sm">Building Area</span>
+                {expandedSections.area ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </Button>
+              {(filters.areaMin || filters.areaMax) && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => {
+                    setFilters(prev => ({ ...prev, areaMin: "", areaMax: "" }));
+                    setCurrentPage(1);
+                    setSearchTrigger(prev => prev + 1);
+                  }}
+                  className="px-2"
+                >
+                  ✕
+                </Button>
+              )}
+            </div>
             {expandedSections.area && (
               <div className="mt-2 space-y-2">
                 <Input
@@ -538,14 +570,30 @@ export default function Listings() {
           {/* Collapsible Land Area */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Land Area</label>
-            <Button
-              variant="outline"
-              className="w-full justify-between h-10"
-              onClick={() => toggleSection('landArea')}
-            >
-              <span className="text-sm">Land Area</span>
-              {expandedSections.landArea ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="w-full justify-between h-10"
+                onClick={() => toggleSection('landArea')}
+              >
+                <span className="text-sm">Land Area</span>
+                {expandedSections.landArea ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </Button>
+              {(filters.landAreaMin || filters.landAreaMax) && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => {
+                    setFilters(prev => ({ ...prev, landAreaMin: "", landAreaMax: "" }));
+                    setCurrentPage(1);
+                    setSearchTrigger(prev => prev + 1);
+                  }}
+                  className="px-2"
+                >
+                  ✕
+                </Button>
+              )}
+            </div>
             {expandedSections.landArea && (
               <div className="mt-2 space-y-2">
                 <Input
@@ -571,14 +619,30 @@ export default function Listings() {
           {/* Collapsible Construction Year */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Construction Year</label>
-            <Button
-              variant="outline"
-              className="w-full justify-between h-10"
-              onClick={() => toggleSection('constructionYear')}
-            >
-              <span className="text-sm">Construction Year</span>
-              {expandedSections.constructionYear ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="w-full justify-between h-10"
+                onClick={() => toggleSection('constructionYear')}
+              >
+                <span className="text-sm">Construction Year</span>
+                {expandedSections.constructionYear ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </Button>
+              {(filters.constructionYearMin || filters.constructionYearMax) && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => {
+                    setFilters(prev => ({ ...prev, constructionYearMin: "", constructionYearMax: "" }));
+                    setCurrentPage(1);
+                    setSearchTrigger(prev => prev + 1);
+                  }}
+                  className="px-2"
+                >
+                  ✕
+                </Button>
+              )}
+            </div>
             {expandedSections.constructionYear && (
               <div className="mt-2 space-y-2">
                 <Input
